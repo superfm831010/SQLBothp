@@ -14,6 +14,26 @@ SQLBot 是一款基于大模型和 RAG 的智能问数系统。SQLBot 的优势�
 - **易于集成**: 支持快速嵌入到第三方业务系统，也支持被 n8n、MaxKB、Dify、Coze 等 AI 应用开发平台集成调用，让各类应用快速拥有智能问数能力；
 - **安全可控**: 提供基于工作空间的资源隔离机制，能够实现细粒度的数据权限控制。
 
+## 🆕 GBase 8a 支持
+
+本 Fork 版本添加了南大通用 GBase 8a 数据库支持。
+
+### GBase 相关文档
+
+- **[GBase 快速开始](GBASE_INTEGRATION.md)** - GBase 集成说明
+- **[开发日志](GBASE_DEVELOPMENT_LOG.md)** - 完整的开发过程记录
+- **[维护指南](GBASE_MAINTENANCE.md)** - 详细的维护和冲突解决文档
+- **[同步指南](SYNC_QUICKSTART.md)** - 从上游同步更新的快速指南
+
+### 上游同步
+
+本项目定期从上游仓库 [dataease/SQLBot](https://github.com/dataease/SQLBot) 同步最新功能。
+
+同步命令：
+```bash
+./sync-upstream.sh
+```
+
 ## 工作原理
 
 <img width="1105" height="577" alt="system-arch" src="https://github.com/user-attachments/assets/462603fc-980b-4b8b-a6d4-a821c070a048" />
