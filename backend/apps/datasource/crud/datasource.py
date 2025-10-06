@@ -297,8 +297,12 @@ def preview(session: SessionDep, current_user: CurrentUser, id: int, data: Table
             {where} 
             LIMIT 100"""
     elif ds.type == "es":
-        sql = f"""SELECT "{'", "'.join(fields)}" FROM "{data.table.table_name}" 
-            {where} 
+        sql = f"""SELECT "{'", "'.join(fields)}" FROM "{data.table.table_name}"
+            {where}
+            LIMIT 100"""
+    elif ds.type == "gbase":
+        sql = f"""SELECT `{"`, `".join(fields)}` FROM `{data.table.table_name}`
+            {where}
             LIMIT 100"""
     return exec_sql(ds, sql, True)
 

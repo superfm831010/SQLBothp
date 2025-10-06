@@ -237,3 +237,290 @@ feat: 添加 GBase 数据库支持
 - 2025-10-06 10:45 - 提交代码
 
 总计用时：约 45 分钟
+
+---
+
+## GBase 8a 个人版 Docker 安装记录
+
+### 安装日期
+2025-10-06
+
+### 环境信息
+- 操作系统: Ubuntu 22.04.5 LTS (x86_64)
+- Docker 版本: 28.4.0
+- 可用磁盘空间: 70GB
+
+### 安装步骤
+
+#### 1. 拉取 Docker 镜像
+```bash
+docker pull shihd/gbase8a:1.0
+```
+
+镜像信息:
+- 镜像: shihd/gbase8a:1.0
+- SHA256: sha256:3153223ce9039748d7d4400a39768c4a9ce6df39576cd34638ac58a0679a6b17
+- 大小: 约 300MB (6层)
+
+#### 2. 启动容器
+```bash
+docker run -d \
+  --name gbase8a-dev \
+  --hostname gbase8a \
+  --privileged=true \
+  -p 5258:5258 \
+  shihd/gbase8a:1.0
+```
+
+容器信息:
+- 容器名: gbase8a-dev
+- 容器ID: 009c55fa5c39
+- 端口映射: 5258:5258
+- 状态: 运行中
+
+#### 3. 验证服务状态
+```bash
+docker ps | grep gbase8a
+docker logs gbase8a-dev
+```
+
+服务日志显示:
+```
+Starting GBase. SUCCESS!
+Express is ready for connections.
+socket: '/tmp/gbase_8a_5258.sock' port: 5258
+```
+
+### GBase 版本信息
+- **版本**: 8.6.2.43-R7-free.110605
+- **类型**: Free Edition (免费版)
+- **限制**: 最多4节点集群, 每节点500GB存储
+
+### 字符集兼容性问题
+
+#### 问题
+GBase 8a 不支持 `utf8mb4_0900_ai_ci` collation (MySQL 8.0 新特性)
+
+#### 解决方案
+将所有 GBase 连接的字符集从 `utf8mb4` 改为 `utf8`
+
+修改文件: `backend/apps/db/db.py`
+- 共修改 6 处 GBase 连接代码
+- 函数: check_connection, get_version, get_schema, get_tables, get_fields, exec_sql
+
+修改内容:
+```python
+# 修改前
+charset='utf8mb4'
+
+# 修改后
+charset='utf8'
+```
+
+### 测试数据生成
+
+#### 测试数据库配置
+- **数据库名**: sqlbot_test_db
+- **表名**: student_info
+- **记录数**: 1000 条
+- **数据类型**: 学生基本信息
+
+#### 表结构
+```sql
+CREATE TABLE student_info (
+    student_id INT PRIMARY KEY,           -- 学号(主键)
+    student_name VARCHAR(50) NOT NULL,    -- 姓名
+    gender VARCHAR(10) NOT NULL,          -- 性别
+    age INT NOT NULL,                     -- 年龄
+    grade INT NOT NULL,                   -- 年级(1-4)
+    class_name VARCHAR(20) NOT NULL,      -- 班级
+    major VARCHAR(50) NOT NULL,           -- 专业
+    phone VARCHAR(20),                    -- 电话
+    email VARCHAR(100),                   -- 邮箱
+    address VARCHAR(200),                 -- 地址
+    enrollment_date DATE,                 -- 入学日期
+    gpa DECIMAL(3, 2),                    -- 绩点(0.00-4.00)
+    status VARCHAR(20) DEFAULT '在读'      -- 状态(在读/休学/交流)
+)
+```
+
+#### 数据统计
+- 性别分布: 男生 486 人, 女生 514 人
+- 年级分布: 1年级 270人, 2年级 251人, 3年级 247人, 4年级 232人
+- 平均GPA: 2.97
+- 平均年龄: 20.4 岁
+- 专业种类: 20 个不同专业
+- 状态: 在读 90%, 休学 5%, 交流 5%
+
+#### 数据特点
+- 真实的中文姓名(基于常见姓氏和名字)
+- 合理的年龄和年级分布
+- 多样化的专业分布(包括计算机、工程、商科、文科等)
+- 随机生成的手机号、邮箱、地址
+- 符合实际的GPA分布(2.0-4.0)
+
+### 连接信息
+
+#### GBase 数据库连接参数
+```yaml
+主机: localhost
+端口: 5258
+用户名: root
+密码: root
+字符集: utf8
+数据库: sqlbot_test_db
+表名: student_info
+```
+
+#### Python 连接示例
+```python
+import GBaseConnector
+
+conn = GBaseConnector.connect(
+    host='localhost',
+    port=5258,
+    user='root',
+    password='root',
+    database='sqlbot_test_db',
+    charset='utf8'
+)
+```
+
+### 测试查询示例
+
+#### 1. 基本查询
+```sql
+-- 查询所有计算机相关专业的学生
+SELECT * FROM student_info
+WHERE major LIKE '%计算机%';
+
+-- 查询GPA大于3.5的优秀学生
+SELECT student_name, major, gpa
+FROM student_info
+WHERE gpa > 3.5
+ORDER BY gpa DESC;
+```
+
+#### 2. 统计查询
+```sql
+-- 统计各年级人数
+SELECT grade, COUNT(*) as count
+FROM student_info
+GROUP BY grade;
+
+-- 统计各专业平均GPA
+SELECT major, AVG(gpa) as avg_gpa
+FROM student_info
+GROUP BY major
+ORDER BY avg_gpa DESC;
+
+-- 统计性别分布
+SELECT gender, COUNT(*)
+FROM student_info
+GROUP BY gender;
+```
+
+#### 3. 复杂查询
+```sql
+-- 查询每个专业GPA最高的学生
+SELECT s1.major, s1.student_name, s1.gpa
+FROM student_info s1
+WHERE s1.gpa = (
+    SELECT MAX(s2.gpa)
+    FROM student_info s2
+    WHERE s2.major = s1.major
+);
+
+-- 查询各年级平均年龄和平均GPA
+SELECT
+    grade,
+    AVG(age) as avg_age,
+    AVG(gpa) as avg_gpa,
+    COUNT(*) as total
+FROM student_info
+GROUP BY grade
+ORDER BY grade;
+```
+
+### 容器管理命令
+
+```bash
+# 启动容器
+docker start gbase8a-dev
+
+# 停止容器
+docker stop gbase8a-dev
+
+# 重启容器
+docker restart gbase8a-dev
+
+# 查看日志
+docker logs -f gbase8a-dev
+
+# 进入容器
+docker exec -it gbase8a-dev /bin/bash
+
+# 删除容器
+docker stop gbase8a-dev
+docker rm gbase8a-dev
+
+# 删除镜像
+docker rmi shihd/gbase8a:1.0
+```
+
+### 测试脚本
+
+#### 1. 基础连接测试
+文件: `test_gbase_live.py`
+- 测试基本连接
+- 创建测试数据库和表
+- 插入和查询数据
+- 验证数据完整性
+
+#### 2. 完整测试数据生成
+文件: `create_gbase_test_data.py`
+- 生成 1000 条学生记录
+- 包含 13 个字段
+- 数据分布合理
+- 支持各种查询场景
+
+### 验证结果
+
+✅ Docker 镜像拉取成功
+✅ 容器启动成功
+✅ GBase 服务运行正常
+✅ Python 驱动连接成功
+✅ 字符集问题已解决
+✅ 测试数据创建成功(1000条)
+✅ 数据查询正常
+✅ 统计功能正常
+
+### 下一步
+
+- [ ] 在 SQLBot 前端界面配置 GBase 数据源
+- [ ] 测试 SQLBot 后端 API 连接
+- [ ] 测试 LLM SQL 生成功能
+- [ ] 测试数据可视化功能
+- [ ] 性能测试
+
+### 注意事项
+
+1. **字符集**: 必须使用 `utf8`, 不能使用 `utf8mb4`
+2. **端口**: GBase 默认端口是 5258, 不是 MySQL 的 3306
+3. **Docker 镜像**: 使用社区版镜像 shihd/gbase8a:1.0
+4. **数据持久化**: 容器删除后数据会丢失, 生产环境需要配置 volume
+5. **内存要求**: 建议至少 2GB 可用内存
+
+### 相关文件
+
+- `test_gbase_connection.py` - GBase 驱动测试脚本
+- `test_gbase_live.py` - 基础连接和数据测试
+- `create_gbase_test_data.py` - 1000条测试数据生成脚本
+- `backend/apps/db/db.py` - GBase 集成代码(已修改字符集)
+
+---
+
+## 总结
+
+GBase 8a 个人版已通过 Docker 成功部署, Python 驱动连接正常, 测试数据完备。
+系统已准备好进行 SQLBot 集成测试。

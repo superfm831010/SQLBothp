@@ -7,6 +7,8 @@ wlist = [
     "/",
     "/docs",
     "/login/*",
+    "/auth/*",
+    "/system/init",
     "*.json",
     "*.ico",
     "*.html",
