@@ -205,6 +205,28 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                         if is_raise:
                             raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
                         return False
+            elif ds.type == 'gbase':
+                import GBaseConnector
+                try:
+                    with GBaseConnector.connect(
+                        host=conf.host,
+                        port=conf.port,
+                        user=conf.username,
+                        password=conf.password,
+                        database=conf.database,
+                        charset='utf8mb4',
+                        connect_timeout=10,
+                        **extra_config_dict
+                    ) as conn:
+                        with conn.cursor() as cursor:
+                            cursor.execute('SELECT 1')
+                            SQLBotLogUtil.info("success")
+                            return True
+                except Exception as e:
+                    SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
+                    if is_raise:
+                        raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+                    return False
             elif ds.type == 'es':
                 es_conn = get_es_connect(conf)
                 if es_conn.ping():
@@ -266,6 +288,18 @@ def get_version(ds: CoreDatasource | AssistantOutDsSchema):
                     cursor.execute(sql)
                     res = cursor.fetchall()
                     version = res[0][0]
+            elif ds.type == 'gbase':
+                import GBaseConnector
+                with GBaseConnector.connect(
+                    host=conf.host, port=conf.port,
+                    user=conf.username, password=conf.password,
+                    database=conf.database, charset='utf8mb4',
+                    connect_timeout=10, **extra_config_dict
+                ) as conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(sql)
+                        res = cursor.fetchall()
+                        version = res[0][0] if res else ''
             elif ds.type == 'redshift' or ds.type == 'es':
                 version = ''
     except Exception as e:
@@ -316,6 +350,19 @@ def get_schema(ds: CoreDatasource):
                 res = cursor.fetchall()
                 res_list = [item[0] for item in res]
                 return res_list
+        elif ds.type == 'gbase':
+            import GBaseConnector
+            with GBaseConnector.connect(
+                host=conf.host, port=conf.port,
+                user=conf.username, password=conf.password,
+                database=conf.database, charset='utf8mb4',
+                connect_timeout=conf.timeout, **extra_config_dict
+            ) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""SELECT DISTINCT TABLE_SCHEMA FROM information_schema.TABLES""")
+                    res = cursor.fetchall()
+                    res_list = [item[0] for item in res]
+                    return res_list
 
 
 def get_tables(ds: CoreDatasource):
@@ -362,6 +409,19 @@ def get_tables(ds: CoreDatasource):
                 res = cursor.fetchall()
                 res_list = [TableSchema(*item) for item in res]
                 return res_list
+        elif ds.type == 'gbase':
+            import GBaseConnector
+            with GBaseConnector.connect(
+                host=conf.host, port=conf.port,
+                user=conf.username, password=conf.password,
+                database=conf.database, charset='utf8mb4',
+                connect_timeout=conf.timeout, **extra_config_dict
+            ) as conn:
+                with conn.cursor() as cursor:
+                    cursor.execute(sql, (sql_param,))
+                    res = cursor.fetchall()
+                    res_list = [TableSchema(*item) for item in res]
+                    return res_list
         elif ds.type == 'es':
             res = get_es_index(conf)
             res_list = [TableSchema(*item) for item in res]
@@ -412,6 +472,22 @@ def get_fields(ds: CoreDatasource, table_name: str = None):
                 res = cursor.fetchall()
                 res_list = [ColumnSchema(*item) for item in res]
                 return res_list
+        elif ds.type == 'gbase':
+            import GBaseConnector
+            with GBaseConnector.connect(
+                host=conf.host, port=conf.port,
+                user=conf.username, password=conf.password,
+                database=conf.database, charset='utf8mb4',
+                connect_timeout=conf.timeout, **extra_config_dict
+            ) as conn:
+                with conn.cursor() as cursor:
+                    if p2:
+                        cursor.execute(sql, (p1, p2))
+                    else:
+                        cursor.execute(sql, (p1,))
+                    res = cursor.fetchall()
+                    res_list = [ColumnSchema(*item) for item in res]
+                    return res_list
         elif ds.type == 'es':
             res = get_es_fields(conf, table_name)
             res_list = [ColumnSchema(*item) for item in res]
@@ -517,6 +593,31 @@ def exec_sql(ds: CoreDatasource | AssistantOutDsSchema, sql: str, origin_column=
                             "sql": bytes.decode(base64.b64encode(bytes(sql, 'utf-8')))}
                 except Exception as ex:
                     raise ParseSQLResultError(str(ex))
+        elif ds.type == 'gbase':
+            import GBaseConnector
+            with GBaseConnector.connect(
+                host=conf.host, port=conf.port,
+                user=conf.username, password=conf.password,
+                database=conf.database, charset='utf8mb4',
+                connect_timeout=conf.timeout, **extra_config_dict
+            ) as conn:
+                with conn.cursor() as cursor:
+                    try:
+                        cursor.execute(sql)
+                        res = cursor.fetchall()
+                        if cursor.description:
+                            columns = [field[0] for field in cursor.description] if origin_column else [field[0].lower() for field in cursor.description]
+                            result_list = [
+                                {str(columns[i]): float(value) if isinstance(value, Decimal) else value for i, value in enumerate(tuple_item)}
+                                for tuple_item in res
+                            ]
+                            return {"fields": columns, "data": result_list,
+                                    "sql": bytes.decode(base64.b64encode(bytes(sql, 'utf-8')))}
+                        else:
+                            return {"fields": [], "data": [],
+                                    "sql": bytes.decode(base64.b64encode(bytes(sql, 'utf-8')))}
+                    except Exception as ex:
+                        raise ParseSQLResultError(str(ex))
         elif ds.type == 'es':
             try:
                 res, columns = get_es_data_by_http(conf, sql)

@@ -75,7 +75,7 @@ template:
         </rule>
         <rule>
           如数据库引擎是 PostgreSQL、Oracle、ClickHouse、达梦（DM）、AWS Redshift、Elasticsearch，则在schema、表名、字段名、别名外层加双引号；
-          如数据库引擎是 MySQL、Doris，则在表名、字段名、别名外层加反引号；
+          如数据库引擎是 MySQL、Doris、GBase，则在表名、字段名、别名外层加反引号；
           如数据库引擎是 Microsoft SQL Server，则在schema、表名、字段名、别名外层加方括号。
           <example>
           以 PostgreSQL 为例，查询Schema为TEST表TABLE下前1000条id字段，则生成的SQL为：
@@ -90,6 +90,8 @@ template:
             SELECT `id` FROM `TEST`.`TABLE` LIMIT 1000
             - 注意在表名外反引号的位置，千万不要生成为:
             SELECT `id` FROM `TEST.TABLE` LIMIT 1000
+          以 GBase 为例，查询Schema为TEST表TABLE下前1000条id字段，则生成的SQL为：
+            SELECT `id` FROM `TEST`.`TABLE` LIMIT 1000
           </example>
         </rule>
         <rule>

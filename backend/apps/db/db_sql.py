@@ -30,6 +30,10 @@ def get_version_sql(ds: CoreDatasource, conf: DatasourceConf):
                 """
     elif ds.type == 'redshift':
         return ''
+    elif ds.type == 'gbase':
+        return """
+                SELECT VERSION()
+                """
 
 
 def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''):
@@ -157,6 +161,17 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
               """, conf.dbSchema
     elif ds.type == "es":
         return "", None
+    elif ds.type == "gbase":
+        return """
+                SELECT
+                    TABLE_NAME,
+                    TABLE_COMMENT
+                FROM
+                    information_schema.TABLES
+                WHERE
+                    TABLE_SCHEMA = %s
+                    AND TABLE_TYPE IN ('BASE TABLE', 'VIEW')
+                """, conf.database
 
 
 def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = None):
@@ -308,3 +323,16 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
         return sql1 + sql2, conf.dbSchema, table_name
     elif ds.type == "es":
         return "", None, None
+    elif ds.type == "gbase":
+        sql1 = """
+                SELECT
+                    COLUMN_NAME,
+                    DATA_TYPE,
+                    COLUMN_COMMENT
+                FROM
+                    INFORMATION_SCHEMA.COLUMNS
+                WHERE
+                    TABLE_SCHEMA = %s
+                """
+        sql2 = " AND TABLE_NAME = %s" if table_name is not None and table_name != "" else ""
+        return sql1 + sql2, conf.database, table_name
