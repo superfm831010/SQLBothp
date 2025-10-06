@@ -187,5 +187,14 @@ cython_debug/
 .DS_Store
 test.py
 
+# 开发环境
+backend/.venv/
+backend/venv/
+logs/
+*.pid
+
+# 测试文件
+test_gbase_connection.py
+GBasePython3-9.5.0.1_build4/
 
 !/.venv/
