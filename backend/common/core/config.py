@@ -96,6 +96,8 @@ class Settings(BaseSettings):
     EMBEDDING_TERMINOLOGY_TOP_COUNT: int = EMBEDDING_DEFAULT_TOP_COUNT
     EMBEDDING_DATA_TRAINING_TOP_COUNT: int = EMBEDDING_DEFAULT_TOP_COUNT
 
+    GENERATE_SQL_QUERY_LIMIT_ENABLED: bool = True
+
     PARSE_REASONING_BLOCK_ENABLED: bool = True
     DEFAULT_REASONING_CONTENT_START: str = '<think>'
     DEFAULT_REASONING_CONTENT_END: str = '</think>'
@@ -105,8 +107,11 @@ class Settings(BaseSettings):
     PG_POOL_RECYCLE: int = 3600
     PG_POOL_PRE_PING: bool = True
 
-    TABLE_EMBEDDING_ENABLED: bool = False
+    TABLE_EMBEDDING_ENABLED: bool = True
     TABLE_EMBEDDING_COUNT: int = 10
+    DS_EMBEDDING_COUNT: int = 10
+
+    ORACLE_CLIENT_PATH: str = '/opt/sqlbot/db_client/oracle_instant_client'
 
 
 settings = Settings()  # type: ignore

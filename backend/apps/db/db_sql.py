@@ -1,39 +1,40 @@
 # Author: Junjun
 # Date: 2025/8/20
 from apps.datasource.models.datasource import CoreDatasource, DatasourceConf
+from common.utils.utils import equals_ignore_case
 
 
 def get_version_sql(ds: CoreDatasource, conf: DatasourceConf):
-    if ds.type == "mysql" or ds.type == "doris":
+    if equals_ignore_case(ds.type, "mysql", "doris", "starrocks"):
         return """
                 SELECT VERSION()
                 """
-    elif ds.type == "sqlServer":
+    elif equals_ignore_case(ds.type, "sqlServer"):
         return """
                 select SERVERPROPERTY('ProductVersion')
                 """
-    elif ds.type == "pg" or ds.type == "kingbase" or ds.type == "excel":
+    elif equals_ignore_case(ds.type, "pg", "kingbase", "excel"):
         return """
               SELECT current_setting('server_version')
               """
-    elif ds.type == "oracle":
+    elif equals_ignore_case(ds.type, "oracle"):
         return """
                 SELECT version FROM v$instance
                 """
-    elif ds.type == "ck":
+    elif equals_ignore_case(ds.type, "ck"):
         return """
                 select  version()
                 """
-    elif ds.type == 'dm':
+    elif equals_ignore_case(ds.type, "dm"):
         return """
                 SELECT * FROM v$version
                 """
-    elif ds.type == 'redshift':
+    elif equals_ignore_case(ds.type, "redshift"):
         return ''
 
 
 def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''):
-    if ds.type == "mysql":
+    if equals_ignore_case(ds.type, "mysql"):
         return """
                 SELECT 
                     TABLE_NAME, 
@@ -43,7 +44,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                 WHERE 
                     TABLE_SCHEMA = :param
                 """, conf.database
-    elif ds.type == "sqlServer":
+    elif equals_ignore_case(ds.type, "sqlServer"):
         return """
                 SELECT 
                     TABLE_NAME AS [TABLE_NAME],
@@ -59,7 +60,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                     t.TABLE_TYPE IN ('BASE TABLE', 'VIEW')
                     AND t.TABLE_SCHEMA = :param
                 """, conf.dbSchema
-    elif ds.type == "pg" or ds.type == "excel":
+    elif equals_ignore_case(ds.type, "pg", "excel"):
         return """
               SELECT c.relname                                       AS TABLE_NAME,
                      COALESCE(d.description, obj_description(c.oid)) AS TABLE_COMMENT
@@ -74,27 +75,31 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                 AND c.relname NOT LIKE 'sql_%'
               ORDER BY c.relname \
               """, conf.dbSchema
-    elif ds.type == "oracle":
+    elif equals_ignore_case(ds.type, "oracle"):
         return """
-                SELECT 
+                SELECT DISTINCT
                     t.TABLE_NAME AS "TABLE_NAME",
                     NVL(c.COMMENTS, '') AS "TABLE_COMMENT"
                 FROM (
                     SELECT TABLE_NAME, 'TABLE' AS OBJECT_TYPE
-                    FROM DBA_TABLES
+                    FROM ALL_TABLES
                     WHERE OWNER = :param  
                     UNION ALL
                     SELECT VIEW_NAME AS TABLE_NAME, 'VIEW' AS OBJECT_TYPE
-                    FROM DBA_VIEWS
+                    FROM ALL_VIEWS
+                    WHERE OWNER = :param  
+                    UNION ALL
+                    SELECT MVIEW_NAME AS TABLE_NAME, 'MATERIALIZED VIEW' AS OBJECT_TYPE
+                    FROM ALL_MVIEWS
                     WHERE OWNER = :param  
                 ) t
-                LEFT JOIN DBA_TAB_COMMENTS c 
+                LEFT JOIN ALL_TAB_COMMENTS c 
                     ON t.TABLE_NAME = c.TABLE_NAME 
                     AND c.TABLE_TYPE = t.OBJECT_TYPE
                     AND c.OWNER = :param   
                 ORDER BY t.TABLE_NAME
                 """, conf.dbSchema
-    elif ds.type == "ck":
+    elif equals_ignore_case(ds.type, "ck"):
         version = int(db_version.split('.')[0])
         if version < 22:
             return """
@@ -112,14 +117,14 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                       AND engine NOT IN ('Dictionary')
                     ORDER BY name
                     """, conf.database
-    elif ds.type == 'dm':
+    elif equals_ignore_case(ds.type, "dm"):
         return """
                 select table_name, comments 
                 from all_tab_comments 
                 where owner=:param
                 AND (table_type = 'TABLE' or table_type = 'VIEW')
                 """, conf.dbSchema
-    elif ds.type == 'redshift':
+    elif equals_ignore_case(ds.type, "redshift"):
         return """
                 SELECT  
                   relname AS TableName, 
@@ -130,7 +135,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                   relkind in  ('r','p', 'f') 
                   AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = %s)
                 """, conf.dbSchema
-    elif ds.type == "doris":
+    elif equals_ignore_case(ds.type, "doris", "starrocks"):
         return """
                 SELECT 
                     TABLE_NAME, 
@@ -140,7 +145,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                 WHERE 
                     TABLE_SCHEMA = %s
                 """, conf.database
-    elif ds.type == "kingbase":
+    elif equals_ignore_case(ds.type, "kingbase"):
         return """
               SELECT c.relname                                       AS TABLE_NAME,
                      COALESCE(d.description, obj_description(c.oid)) AS TABLE_COMMENT
@@ -155,12 +160,12 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
                 AND c.relname NOT LIKE 'sql_%'
               ORDER BY c.relname \
               """, conf.dbSchema
-    elif ds.type == "es":
+    elif equals_ignore_case(ds.type, "es"):
         return "", None
 
 
 def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = None):
-    if ds.type == "mysql":
+    if equals_ignore_case(ds.type, "mysql"):
         sql1 = """
                 SELECT 
                     COLUMN_NAME,
@@ -173,7 +178,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                 """
         sql2 = " AND TABLE_NAME = :param2" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.database, table_name
-    elif ds.type == "sqlServer":
+    elif equals_ignore_case(ds.type, "sqlServer"):
         sql1 = """
                 SELECT 
                     COLUMN_NAME AS [COLUMN_NAME],
@@ -191,7 +196,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                 """
         sql2 = " AND C.TABLE_NAME = :param2" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.dbSchema, table_name
-    elif ds.type == "pg" or ds.type == "excel":
+    elif equals_ignore_case(ds.type, "pg", "excel"):
         sql1 = """
                SELECT a.attname                                       AS COLUMN_NAME,
                       pg_catalog.format_type(a.atttypid, a.atttypmod) AS DATA_TYPE,
@@ -207,7 +212,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                """
         sql2 = " AND c.relname = :param2" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.dbSchema, table_name
-    elif ds.type == "redshift":
+    elif equals_ignore_case(ds.type, "redshift"):
         sql1 = """
                SELECT a.attname                                       AS COLUMN_NAME,
                       pg_catalog.format_type(a.atttypid, a.atttypmod) AS DATA_TYPE,
@@ -223,7 +228,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                """
         sql2 = " AND c.relname = %s" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.dbSchema, table_name
-    elif ds.type == "oracle":
+    elif equals_ignore_case(ds.type, "oracle"):
         sql1 = """
                 SELECT 
                     col.COLUMN_NAME AS "COLUMN_NAME",
@@ -237,9 +242,9 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                     END) AS "DATA_TYPE",
                     NVL(com.COMMENTS, '') AS "COLUMN_COMMENT"
                 FROM 
-                    DBA_TAB_COLUMNS col
+                    ALL_TAB_COLUMNS col
                 LEFT JOIN 
-                    DBA_COL_COMMENTS com 
+                    ALL_COL_COMMENTS com 
                     ON col.OWNER = com.OWNER 
                     AND col.TABLE_NAME = com.TABLE_NAME 
                     AND col.COLUMN_NAME = com.COLUMN_NAME
@@ -248,7 +253,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                 """
         sql2 = " AND col.TABLE_NAME = :param2" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.dbSchema, table_name
-    elif ds.type == "ck":
+    elif equals_ignore_case(ds.type, "ck"):
         sql1 = """
                 SELECT 
                     name AS COLUMN_NAME,
@@ -259,7 +264,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                 """
         sql2 = " AND table = :param2" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.database, table_name
-    elif ds.type == 'dm':
+    elif equals_ignore_case(ds.type, "dm"):
         sql1 = """
                 SELECT 
                     c.COLUMN_NAME    AS "COLUMN_NAME",
@@ -277,7 +282,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                 """
         sql2 = " AND c.TABLE_NAME = :param2" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.dbSchema, table_name
-    elif ds.type == "doris":
+    elif equals_ignore_case(ds.type, "doris", "starrocks"):
         sql1 = """
                 SELECT 
                     COLUMN_NAME,
@@ -290,7 +295,7 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                 """
         sql2 = " AND TABLE_NAME = %s" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.database, table_name
-    elif ds.type == "kingbase":
+    elif equals_ignore_case(ds.type, "kingbase"):
         sql1 = """
                        SELECT a.attname                                       AS COLUMN_NAME,
                               pg_catalog.format_type(a.atttypid, a.atttypmod) AS DATA_TYPE,
@@ -306,5 +311,5 @@ def get_field_sql(ds: CoreDatasource, conf: DatasourceConf, table_name: str = No
                        """
         sql2 = " AND c.relname = '{1}'" if table_name is not None and table_name != "" else ""
         return sql1 + sql2, conf.dbSchema, table_name
-    elif ds.type == "es":
+    elif equals_ignore_case(ds.type, "es"):
         return "", None, None

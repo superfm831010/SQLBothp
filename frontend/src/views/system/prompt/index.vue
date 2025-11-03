@@ -21,7 +21,7 @@ interface Form {
   prompt: string | null
   specific_ds: boolean
   datasource_ids: number[]
-  datasource_name: string[]
+  datasource_names: string[]
   name: string | null
 }
 
@@ -59,7 +59,7 @@ const defaultForm = {
   type: null,
   prompt: null,
   datasource_ids: [],
-  datasource_name: [],
+  datasource_names: [],
   name: null,
   specific_ds: false,
 }
@@ -70,7 +70,7 @@ const copyCode = () => {
       ElMessage.success(t('embedded.copy_successful'))
     })
     .catch(function () {
-      ElMessage.error(t('embedded.copy_successful'))
+      ElMessage.error(t('embedded.copy_failed'))
     })
 }
 const cancelDelete = () => {
@@ -602,7 +602,7 @@ const typeChange = (val: any) => {
   </el-drawer>
   <el-drawer
     v-model="rowInfoDialog"
-    :title="$t('professional.professional_term_details')"
+    :title="$t('menu.Details')"
     destroy-on-close
     size="600px"
     :before-close="onRowFormClose"
@@ -628,7 +628,11 @@ const typeChange = (val: any) => {
       </el-form-item>
       <el-form-item :label="t('ds.title')">
         <div class="content">
-          {{ pageForm.datasource_name.join() }}
+          {{
+            pageForm.datasource_names.length && pageForm.specific_ds
+              ? pageForm.datasource_names.join()
+              : t('training.all_data_sources')
+          }}
         </div>
       </el-form-item>
     </el-form>

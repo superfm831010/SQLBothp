@@ -86,6 +86,37 @@ def get_last_execute_sql_error(session: SessionDep, chart_id: int):
     return None
 
 
+def format_json_data(origin_data: dict):
+    result = {'fields': origin_data.get('fields') if origin_data.get('fields') else []}
+    _list = origin_data.get('data') if origin_data.get('data') else []
+    data = format_json_list_data(_list)
+    result['data'] = data
+
+    return result
+
+
+def format_json_list_data(origin_data: list[dict]):
+    data = []
+    for _data in origin_data if origin_data else []:
+        _row = {}
+        for key, value in _data.items():
+            if value is not None:
+                # 检查是否为数字且需要特殊处理
+                if isinstance(value, (int, float)):
+                    # 整数且超过15位 → 转字符串并标记为文本列
+                    if isinstance(value, int) and len(str(abs(value))) > 15:
+                        value = str(value)
+                    # 小数且超过15位有效数字 → 转字符串并标记为文本列
+                    elif isinstance(value, float):
+                        decimal_str = format(value, '.16f').rstrip('0').rstrip('.')
+                        if len(decimal_str) > 15:
+                            value = str(value)
+            _row[key] = value
+        data.append(_row)
+
+    return data
+
+
 def get_chat_chart_data(session: SessionDep, chart_record_id: int):
     stmt = select(ChatRecord.data).where(and_(ChatRecord.id == chart_record_id))
     res = session.execute(stmt)
@@ -94,7 +125,7 @@ def get_chat_chart_data(session: SessionDep, chart_record_id: int):
             return orjson.loads(row.data)
         except Exception:
             pass
-    return []
+    return {}
 
 
 def get_chat_predict_data(session: SessionDep, chart_record_id: int):
@@ -105,7 +136,7 @@ def get_chat_predict_data(session: SessionDep, chart_record_id: int):
             return orjson.loads(row.predict_data)
         except Exception:
             pass
-    return []
+    return {}
 
 
 def get_chat_with_records_with_data(session: SessionDep, chart_id: int, current_user: CurrentUser,
@@ -210,6 +241,14 @@ def get_chat_with_records(session: SessionDep, chart_id: int, current_user: Curr
                                  finish=row.finish, error=row.error, data=row.data, predict_data=row.predict_data))
 
     result = list(map(format_record, record_list))
+
+    for row in result:
+        try:
+            data_value = row.get('data')
+            if data_value is not None:
+                row['data'] = format_json_data(data_value)
+        except Exception:
+            pass
 
     chat_info.records = result
 
