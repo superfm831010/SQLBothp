@@ -536,6 +536,10 @@ class LLMService:
         if _error:
             raise _error
 
+        # Return empty generator if no yield happened (for ignore_auto_select case)
+        if ignore_auto_select and not settings.TABLE_EMBEDDING_ENABLED:
+            yield {'content': '{"id":' + str(self.ds.id if self.ds else 0) + '}'}
+
     def generate_sql(self):
         # append current question
         self.sql_message.append(HumanMessage(
@@ -969,7 +973,7 @@ class LLMService:
                 self.validate_history_ds()
 
             # check connection
-            connected = check_connection(ds=self.ds, trans=None)
+            connected = check_connection(trans=None, ds=self.ds)
             if not connected:
                 raise SQLBotDBConnectionError('Connect DB failed')
 

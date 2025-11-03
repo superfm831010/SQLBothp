@@ -225,7 +225,7 @@ Configuration is managed via Pydantic Settings in `backend/common/core/config.py
 - Uses `langchain-openai`, `langchain-community`, `dashscope` for various providers
 
 ### Pre-commit hooks:
-The project uses pre-commit for code quality (see `.pre-commit-config.yaml`):
+The project uses pre-commit for code quality (see `.pre-commit-config.后续`):
 - ruff (linting + formatting)
 - yaml/toml validators
 - trailing whitespace/EOF fixers

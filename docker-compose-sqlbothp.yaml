@@ -1,0 +1,111 @@
+# Docker Compose for SQLBothp (with built-in PostgreSQL + GBase support)
+# SQLBothp 内网离线部署配置文件
+#
+# 特性：
+# - 内置 PostgreSQL 数据库（无需额外数据库容器）
+# - 集成 GBase 8a 数据库驱动支持
+# - 支持内网离线环境部署
+#
+# 使用方法：
+# 1. 首次部署：docker-compose -f docker-compose-sqlbothp.yaml up -d
+# 2. 查看日志：docker-compose -f docker-compose-sqlbothp.yaml logs -f
+# 3. 停止服务：docker-compose -f docker-compose-sqlbothp.yaml down
+# 4. 访问地址：http://YOUR_SERVER_IP:8090
+# 5. 默认账号：admin / SQLBot@123456
+
+version: '3.8'
+
+services:
+  sqlbothp:
+    image: sqlbothp:latest
+    container_name: sqlbothp
+    restart: always
+    privileged: true
+    networks:
+      - sqlbothp-network
+    ports:
+      - "8090:8000"   # Web UI 和 API 端口（映射到宿主机 8090）
+      - "8001:8001"   # MCP 服务端口
+      - "3000:3000"   # G2-SSR 图表渲染服务端口
+    environment:
+      # ==================== 数据库配置 ====================
+      # 注意：PostgreSQL 内置在容器中，使用 localhost 连接
+      POSTGRES_SERVER: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: sqlbot
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: Password123@pg
+
+      # ==================== 项目基础设置 ====================
+      PROJECT_NAME: "SQLBothp"
+      DEFAULT_PWD: "SQLBot@123456"
+
+      # ==================== MCP 设置 ====================
+      # 重要：请修改为实际的服务器 IP 地址
+      SERVER_IMAGE_HOST: http://YOUR_SERVER_IP:8001/images/
+
+      # ==================== 安全配置 ====================
+      # 生产环境请修改此密钥
+      SECRET_KEY: y5txe1mRmS_JpOrUzFzHEu-kIQn3lf7ll0AOv9DQh0s
+
+      # ==================== CORS 配置 ====================
+      # 根据实际访问域名修改
+      BACKEND_CORS_ORIGINS: "http://localhost,http://localhost:5173,https://localhost,https://localhost:5173"
+
+      # ==================== 日志配置 ====================
+      LOG_LEVEL: "INFO"
+      SQL_DEBUG: "False"
+
+      # ==================== 缓存配置 ====================
+      # 可选：memory, redis, 或留空不使用缓存
+      # CACHE_TYPE: memory
+      # CACHE_REDIS_URL: redis://redis:6379/0
+
+    volumes:
+      # 数据持久化目录
+      - ./data/sqlbothp/excel:/opt/sqlbot/data/excel          # Excel 上传文件
+      - ./data/sqlbothp/file:/opt/sqlbot/data/file            # 其他上传文件
+      - ./data/sqlbothp/images:/opt/sqlbot/images             # 图片文件
+      - ./data/sqlbothp/logs:/opt/sqlbot/app/logs             # 应用日志
+      - ./data/sqlbothp/postgresql:/var/lib/postgresql/data   # PostgreSQL 数据文件（重要！）
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    # 资源限制（可根据实际情况调整）
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '4'
+    #       memory: 8G
+    #     reservations:
+    #       cpus: '2'
+    #       memory: 4G
+
+networks:
+  sqlbothp-network:
+    driver: bridge
+    name: sqlbothp-network
+
+# 数据卷说明：
+# - excel: 存储通过 Excel 导入的数据文件
+# - file: 存储其他类型的上传文件
+# - images: 存储生成的图表图片（MCP 服务使用）
+# - logs: 应用运行日志，便于故障排查
+# - postgresql: PostgreSQL 数据库文件，包含所有配置和数据（务必备份！）
+#
+# GBase 数据库配置说明：
+# 1. 启动容器后，登录 Web UI
+# 2. 进入"数据源管理"
+# 3. 选择"GBase"数据源类型
+# 4. 填写连接信息：
+#    - 主机：GBase 服务器地址
+#    - 端口：5258（GBase 默认端口）
+#    - 数据库名：您的数据库名
+#    - 用户名：GBase 用户名
+#    - 密码：GBase 密码
+# 5. 测试连接后保存

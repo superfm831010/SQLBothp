@@ -197,4 +197,7 @@ logs/
 test_gbase_connection.py
 GBasePython3-9.5.0.1_build4/
 
+# 数据目录
+data/
+
 !/.venv/

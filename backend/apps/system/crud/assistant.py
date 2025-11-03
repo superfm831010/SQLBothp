@@ -16,7 +16,7 @@ from common.core.config import settings
 from common.core.db import engine
 from common.core.sqlbot_cache import cache
 from common.utils.aes_crypto import simple_aes_decrypt
-from common.utils.utils import string_to_numeric_hash
+from common.utils.utils import string_to_numeric_hash, SQLBotLogUtil
 
 @cache(namespace=CacheNamespace.EMBEDDED_INFO, cacheName=CacheName.ASSISTANT_INFO, keyExpression="assistant_id")
 async def get_assistant_info(*, session: Session, assistant_id: int) -> AssistantModel | None:
@@ -108,7 +108,15 @@ class AssistantOutDs:
     def get_ds_from_api(self):
         config: dict[any] = json.loads(self.assistant.configuration)
         endpoint: str = config['endpoint']
-        certificateList: list[any] = json.loads(self.certificate)
+
+        # Replace external IP with internal Docker network address for backend calls
+        # This allows frontend validation to work while backend uses internal network
+        if '192.168.31.10:8100' in endpoint:
+            endpoint = endpoint.replace('192.168.31.10:8100', 'dataease:8100')
+            SQLBotLogUtil.info(f"Replaced external IP with internal address: {endpoint}")
+
+        # Handle case where certificate is None
+        certificateList: list[any] = json.loads(self.certificate) if self.certificate else []
         header = {}
         cookies = {}
         param = {}

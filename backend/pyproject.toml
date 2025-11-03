@@ -51,7 +51,8 @@ dependencies = [
     "dmpython>=2.5.22; platform_system != 'Darwin'",
     "redshift-connector>=2.1.8",
     "elasticsearch[requests] (>=7.10,<8.0)",
-    "gbase-connector-python @ file:///projects/SqlBothp/GBasePython3-9.5.0.1_build4",
+    # GBase driver installed separately via Dockerfile (see Docker build steps)
+    # "gbase-connector-python @ file:///../GBasePython3-9.5.0.1_build4",
 ]
 
 [project.optional-dependencies]
@@ -113,6 +114,9 @@ priority = "primary"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]

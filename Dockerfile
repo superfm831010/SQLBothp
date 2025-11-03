@@ -1,4 +1,4 @@
-# Build sqlbot
+# Build sqlbot with GBase support
 FROM ghcr.io/1panel-dev/maxkb-vector-model:v1.0.1 AS vector-model
 FROM registry.cn-qingdao.aliyuncs.com/dataease/sqlbot-base:latest AS sqlbot-builder
 
@@ -18,9 +18,12 @@ RUN mkdir -p ${APP_HOME} ${UI_HOME}
 
 WORKDIR ${APP_HOME}
 
+# Build frontend
 COPY frontend /tmp/frontend
-
 RUN cd /tmp/frontend; npm install; npm run build; mv dist ${UI_HOME}/dist
+
+# Copy GBase driver for local installation
+COPY GBasePython3-9.5.0.1_build4 /tmp/GBasePython3-9.5.0.1_build4
 
 # Install dependencies
 RUN test -f "./uv.lock" && \
@@ -31,8 +34,15 @@ RUN test -f "./uv.lock" && \
 
 COPY ./backend ${APP_HOME}
 
-# Final sync to ensure all dependencies are installed
+# Install GBase driver first (before syncing other dependencies)
+RUN cd /tmp/GBasePython3-9.5.0.1_build4 && \
+    python setup.py install && \
+    cd ${APP_HOME} && \
+    rm -rf /tmp/GBasePython3-9.5.0.1_build4
+
+# Final sync to ensure all other dependencies are installed (exclude GBase driver from pyproject.toml)
 RUN --mount=type=cache,target=/root/.cache/uv \
+   uv sync --extra cpu --no-install-project && \
    uv sync --extra cpu
 
 # Build g2-ssr
@@ -67,6 +77,12 @@ COPY g2-ssr/*.ttf /usr/share/fonts/truetype/liberation/
 COPY --from=sqlbot-builder ${SQLBOT_HOME} ${SQLBOT_HOME}
 COPY --from=ssr-builder /app /opt/sqlbot/g2-ssr
 COPY --from=vector-model /opt/maxkb/app/model /opt/sqlbot/models
+
+# Install GBase driver in runtime stage
+COPY GBasePython3-9.5.0.1_build4 /tmp/GBasePython3-9.5.0.1_build4
+RUN cd /tmp/GBasePython3-9.5.0.1_build4 && \
+    python setup.py install && \
+    rm -rf /tmp/GBasePython3-9.5.0.1_build4
 
 WORKDIR ${SQLBOT_HOME}/app
 

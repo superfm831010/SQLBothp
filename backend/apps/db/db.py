@@ -8,7 +8,7 @@ from typing import Optional
 import psycopg2
 import pymssql
 from apps.db.db_sql import get_table_sql, get_field_sql, get_version_sql
-from common.error import ParseSQLResultError
+from common.error import ParseSQLResultError, SQLBotDBConnectionError
 
 if platform.system() != "Darwin":
     import dmPython
@@ -27,6 +27,20 @@ from common.core.deps import Trans
 from common.utils.utils import SQLBotLogUtil
 from fastapi import HTTPException
 from apps.db.es_engine import get_es_connect, get_es_index, get_es_fields, get_es_data_by_http
+
+
+def _build_assistant_conf(ds: AssistantOutDsSchema, timeout: int = 10) -> DatasourceConf:
+    return DatasourceConf(
+        host=ds.host or '',
+        port=ds.port or 0,
+        username=ds.user or '',
+        password=ds.password or '',
+        database=ds.dataBase or '',
+        driver='',
+        extraJdbc=ds.extraParams or '',
+        dbSchema=ds.db_schema or '',
+        timeout=timeout
+    )
 
 
 def get_uri(ds: CoreDatasource) -> str:
@@ -68,7 +82,7 @@ def get_uri_from_config(type: str, conf: DatasourceConf) -> str:
         else:
             db_url = f"clickhouse+http://{urllib.parse.quote(conf.username)}:{urllib.parse.quote(conf.password)}@{conf.host}:{conf.port}/{conf.database}"
     else:
-        raise 'The datasource type not support.'
+        raise SQLBotDBConnectionError(f"The datasource type '{type}' is not supported.")
     return db_url
 
 
@@ -147,7 +161,8 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
             except Exception as e:
                 SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
                 if is_raise:
-                    raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+                    error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                    raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
                 return False
         else:
             conf = DatasourceConf(**json.loads(aes_decrypt(ds.configuration)))
@@ -162,7 +177,8 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                     except Exception as e:
                         SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
                         if is_raise:
-                            raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+                            error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                            raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
                         return False
             elif ds.type == 'doris':
                 with pymysql.connect(user=conf.username, passwd=conf.password, host=conf.host,
@@ -175,7 +191,8 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                     except Exception as e:
                         SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
                         if is_raise:
-                            raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+                            error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                            raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
                         return False
             elif ds.type == 'redshift':
                 with redshift_connector.connect(host=conf.host, port=conf.port, database=conf.database,
@@ -189,7 +206,8 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                     except Exception as e:
                         SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
                         if is_raise:
-                            raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+                            error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                            raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
                         return False
             elif ds.type == 'kingbase':
                 with psycopg2.connect(host=conf.host, port=conf.port, database=conf.database,
@@ -203,7 +221,8 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                     except Exception as e:
                         SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
                         if is_raise:
-                            raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+                            error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                            raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
                         return False
             elif ds.type == 'gbase':
                 import GBaseConnector
@@ -228,7 +247,8 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                 except Exception as e:
                     SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
                     if is_raise:
-                        raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+                        error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                        raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
                     return False
                 finally:
                     if cursor:
@@ -244,15 +264,91 @@ def check_connection(trans: Optional[Trans], ds: CoreDatasource | AssistantOutDs
                     SQLBotLogUtil.info("failed")
                     return False
     else:
-        conn = get_ds_engine(ds)
-        try:
-            with conn.connect() as connection:
-                SQLBotLogUtil.info("success")
-                return True
-        except Exception as e:
-            SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
-            if is_raise:
-                raise HTTPException(status_code=500, detail=trans('i18n_ds_invalid') + f': {e.args}')
+        db = DB.get_db(ds.type)
+        conf = _build_assistant_conf(ds, timeout=10)
+        if db.connect_type == ConnectType.sqlalchemy:
+            conn = get_ds_engine(ds)
+            try:
+                with conn.connect() as connection:
+                    SQLBotLogUtil.info("success")
+                    return True
+            except Exception as e:
+                SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
+                if is_raise:
+                    error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                    raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
+                return False
+        else:
+            extra_config_dict = get_extra_config(conf)
+            try:
+                if ds.type == 'dm':
+                    with dmPython.connect(user=conf.username, password=conf.password, server=conf.host,
+                                          port=conf.port, **extra_config_dict) as conn, conn.cursor() as cursor:
+                        cursor.execute('select 1', timeout=10).fetchall()
+                        SQLBotLogUtil.info("success")
+                        return True
+                elif ds.type == 'doris':
+                    with pymysql.connect(user=conf.username, passwd=conf.password, host=conf.host,
+                                         port=conf.port, db=conf.database, connect_timeout=10,
+                                         read_timeout=10, **extra_config_dict) as conn, conn.cursor() as cursor:
+                        cursor.execute('select 1')
+                        SQLBotLogUtil.info("success")
+                        return True
+                elif ds.type == 'redshift':
+                    with redshift_connector.connect(host=conf.host, port=conf.port, database=conf.database,
+                                                    user=conf.username,
+                                                    password=conf.password,
+                                                    timeout=10, **extra_config_dict) as conn, conn.cursor() as cursor:
+                        cursor.execute('select 1')
+                        SQLBotLogUtil.info("success")
+                        return True
+                elif ds.type == 'kingbase':
+                    with psycopg2.connect(host=conf.host, port=conf.port, database=conf.database,
+                                          user=conf.username,
+                                          password=conf.password,
+                                          connect_timeout=10, **extra_config_dict) as conn, conn.cursor() as cursor:
+                        cursor.execute('select 1')
+                        SQLBotLogUtil.info("success")
+                        return True
+                elif ds.type == 'gbase':
+                    import GBaseConnector
+                    conn = None
+                    cursor = None
+                    try:
+                        conn = GBaseConnector.connect(
+                            host=conf.host,
+                            port=conf.port,
+                            user=conf.username,
+                            password=conf.password,
+                            database=conf.database,
+                            charset='utf8',
+                            connect_timeout=10,
+                            **extra_config_dict
+                        )
+                        cursor = conn.cursor()
+                        cursor.execute('SELECT 1')
+                        cursor.fetchall()
+                        SQLBotLogUtil.info("success")
+                        return True
+                    finally:
+                        if cursor:
+                            cursor.close()
+                        if conn:
+                            conn.close()
+                elif ds.type == 'es':
+                    es_conn = get_es_connect(conf)
+                    if es_conn.ping():
+                        SQLBotLogUtil.info("success")
+                        return True
+                    SQLBotLogUtil.info("failed")
+                    return False
+                else:
+                    SQLBotLogUtil.error(f"Datasource {ds.id} type {ds.type} is not supported for assistant connections.")
+            except Exception as e:
+                SQLBotLogUtil.error(f"Datasource {ds.id} connection failed: {e}")
+                if is_raise:
+                    error_msg = trans('i18n_ds_invalid') if trans else 'Datasource connection failed'
+                    raise HTTPException(status_code=500, detail=f"{error_msg}: {str(e)}")
             return False
 
     return False
@@ -555,7 +651,9 @@ def exec_sql(ds: CoreDatasource | AssistantOutDsSchema, sql: str, origin_column=
                 except Exception as ex:
                     raise ParseSQLResultError(str(ex))
     else:
-        conf = DatasourceConf(**json.loads(aes_decrypt(ds.configuration)))
+        conf = (DatasourceConf(**json.loads(aes_decrypt(ds.configuration)))
+                if isinstance(ds, CoreDatasource)
+                else _build_assistant_conf(ds))
         extra_config_dict = get_extra_config(conf)
         if ds.type == 'dm':
             with dmPython.connect(user=conf.username, password=conf.password, server=conf.host,

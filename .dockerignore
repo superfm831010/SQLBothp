@@ -10,3 +10,14 @@ backend/.gitignore
 backend/README.md
 backend/scripts
 backend/.DS_Store
+
+# Development files
+*.log
+.git
+.github
+.vscode
+*.md
+!CLAUDE.md
+
+# Keep GBase driver - DO NOT IGNORE
+!GBasePython3-9.5.0.1_build4/
