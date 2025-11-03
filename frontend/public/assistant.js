@@ -67,9 +67,16 @@
 </div>`
 
   const getChatContainerHtml = (data) => {
+    let srcUrl = `${data.domain_url}/#/assistant?id=${data.id}&online=${!!data.online}&name=${encodeURIComponent(data.name)}`
+    if (data.userFlag) {
+      srcUrl += `&userFlag=${data.userFlag || ''}`
+    }
+    if (data.history) {
+      srcUrl += `&history=${data.history}`
+    }
     return `
 <div id="sqlbot-assistant-chat-container">
-  <iframe id="sqlbot-assistant-chat-iframe-${data.id}" allow="microphone;clipboard-read 'src'; clipboard-write 'src'" src="${data.domain_url}/#/assistant?id=${data.id}&online=${!!data.online}&name=${encodeURIComponent(data.name)}&userFlag=${data.userFlag || ''}"></iframe>
+  <iframe id="sqlbot-assistant-chat-iframe-${data.id}" allow="microphone;clipboard-read 'src'; clipboard-write 'src'" src="${srcUrl}"></iframe>
   <div class="sqlbot-assistant-operate">
   <div class="sqlbot-assistant-closeviewport sqlbot-assistant-viewportnone">
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -89,6 +96,52 @@
 </div>
 `
   }
+
+  function getHighestZIndexValue() {
+    try {
+      let maxZIndex = -Infinity
+      let foundAny = false
+
+      const allElements = document.all || document.querySelectorAll('*')
+
+      for (let i = 0; i < allElements.length; i++) {
+        const element = allElements[i]
+
+        if (!element || element.nodeType !== 1) continue
+
+        const styles = window.getComputedStyle(element)
+
+        const position = styles.position
+        if (position === 'static') continue
+
+        const zIndex = styles.zIndex
+        let zIndexValue
+
+        if (zIndex === 'auto') {
+          zIndexValue = 0
+        } else {
+          zIndexValue = parseInt(zIndex, 10)
+          if (isNaN(zIndexValue)) continue
+        }
+
+        foundAny = true
+
+        // 快速返回：如果找到很大的z-index，很可能就是最大值
+        /* if (zIndexValue > 10000) {
+          return zIndexValue;
+        } */
+
+        if (zIndexValue > maxZIndex) {
+          maxZIndex = zIndexValue
+        }
+      }
+      return foundAny ? maxZIndex : 0
+    } catch (error) {
+      console.warn('获取最高z-index时出错，返回默认值0:', error)
+      return 0
+    }
+  }
+
   /**
    * 初始化引导
    * @param {*} root
@@ -249,6 +302,9 @@
 
   // 初始化全局样式
   function initsqlbot_assistantStyle(root, sqlbot_assistantId, data) {
+    const maxZIndex = getHighestZIndexValue()
+    const zIndex = Math.max((maxZIndex || 0) + 1, 10000)
+    const maskZIndex = zIndex + 1
     style = document.createElement('style')
     style.type = 'text/css'
     style.innerText = `
@@ -272,7 +328,7 @@
 
   #sqlbot-assistant .sqlbot-assistant-mask {
       position: fixed;
-      z-index: 10001;
+      z-index: ${maskZIndex};
       background-color: transparent;
       height: 100%;
       width: 100%;
@@ -286,7 +342,7 @@
       position: absolute;
       ${data.x_type}: ${data.x_val}px;
       ${data.y_type}: ${data.y_val}px;
-      z-index: 10001;
+      z-index: ${maskZIndex};
   }
   #sqlbot-assistant .sqlbot-assistant-tips {
       position: fixed;
@@ -297,7 +353,7 @@
       color: #ffffff;
       font-size: 14px;
       background: #3370FF;
-      z-index: 10001;
+      z-index: ${maskZIndex};
   }
   #sqlbot-assistant .sqlbot-assistant-tips .sqlbot-assistant-arrow {
       position: absolute;
@@ -359,10 +415,11 @@
     ${data.x_type}: ${data.x_val}px;
     ${data.y_type}: ${data.y_val}px;
     cursor: pointer;
-    z-index:10000;
+    z-index: ${zIndex};
   }
   #sqlbot-assistant #sqlbot-assistant-chat-container{
-    z-index:10000;position: relative;
+    z-index: ${zIndex};
+    position: relative;
     border-radius: 8px;
     //border: 1px solid #ffffff;
     background: linear-gradient(188deg, rgba(235, 241, 255, 0.20) 39.6%, rgba(231, 249, 255, 0.20) 94.3%), #EFF0F1;
@@ -499,6 +556,7 @@
     const domain_url = getDomain(src)
     const online = getParam(src, 'online')
     const userFlag = getParam(src, 'userFlag')
+    const history = getParam(src, 'history')
     let url = `${domain_url}/api/v1/system/assistant/info/${id}`
     if (domain_url.includes('5173')) {
       url = url.replace('5173', '8000')
@@ -536,6 +594,7 @@
 
         tempData['online'] = online && online.toString().toLowerCase() == 'true'
         tempData['userFlag'] = userFlag
+        tempData['history'] = history
         initsqlbot_assistant(tempData)
         if (data.type == 1) {
           registerMessageEvent(id, tempData)
@@ -749,6 +808,39 @@
         delete window[propName]
       }
       delete window.sqlbot_assistant_handler[id]
+    }
+    window.sqlbot_assistant_handler[id]['setHistory'] = (show) => {
+      if (show != null && typeof show != 'boolean') {
+        throw new Error('The parameter can only be of type boolean')
+      }
+      const iframe = document.getElementById(`sqlbot-assistant-chat-iframe-${id}`)
+      if (iframe) {
+        const url = iframe.src
+        const eventName = 'sqlbot_assistant_event'
+        const params = {
+          busi: 'setHistory',
+          show,
+          eventName,
+          messageId: id,
+        }
+        const contentWindow = iframe.contentWindow
+        contentWindow.postMessage(params, url)
+      }
+    }
+    window.sqlbot_assistant_handler[id]['createConversation'] = (param) => {
+      const iframe = document.getElementById(`sqlbot-assistant-chat-iframe-${id}`)
+      if (iframe) {
+        const url = iframe.src
+        const eventName = 'sqlbot_assistant_event'
+        const params = {
+          busi: 'createConversation',
+          param,
+          eventName,
+          messageId: id,
+        }
+        const contentWindow = iframe.contentWindow
+        contentWindow.postMessage(params, url)
+      }
     }
   }
   // window.addEventListener('load', init)

@@ -6,7 +6,13 @@
     popper-class="popover-chat_history popover-chat_history_small"
   >
     <template #reference>
-      <el-icon class="show-history_icon" style="" size="20" @click="showFloatPopover">
+      <el-icon
+        class="show-history_icon"
+        :class="{ 'embedded-history-hidden': embeddedHistoryHidden }"
+        style=""
+        size="20"
+        @click="showFloatPopover"
+      >
         <icon_sidebar_outlined></icon_sidebar_outlined>
       </el-icon>
     </template>
@@ -17,7 +23,7 @@
       v-model:current-chat="currentChat"
       v-model:loading="loading"
       in-popover
-      :appName="customName"
+      :app-name="customName"
       @go-empty="goEmpty"
       @on-chat-created="onChatCreated"
       @on-click-history="onClickHistory"
@@ -30,6 +36,7 @@
     <el-aside
       v-if="(isCompletePage || pageEmbedded) && chatListSideBarShow"
       class="chat-container-left"
+      :class="{ 'embedded-history-hidden': embeddedHistoryHidden }"
     >
       <ChatListContainer
         v-model:chat-list="chatList"
@@ -37,7 +44,7 @@
         v-model:current-chat="currentChat"
         v-model:loading="loading"
         :in-popover="!chatListSideBarShow"
-        :appName="customName"
+        :app-name="customName"
         @go-empty="goEmpty"
         @on-chat-created="onChatCreated"
         @on-click-history="onClickHistory"
@@ -50,7 +57,10 @@
     <div
       v-if="(!isCompletePage && !pageEmbedded) || !chatListSideBarShow"
       class="hidden-sidebar-btn"
-      :class="{ 'assistant-popover-sidebar': !isCompletePage && !pageEmbedded }"
+      :class="{
+        'assistant-popover-sidebar': !isCompletePage && !pageEmbedded,
+        'embedded-history-hidden': embeddedHistoryHidden,
+      }"
     >
       <el-popover
         :width="280"
@@ -72,7 +82,7 @@
           v-model:current-chat="currentChat"
           v-model:loading="loading"
           :in-popover="!chatListSideBarShow"
-          :appName="customName"
+          :app-name="customName"
           @go-empty="goEmpty"
           @on-chat-created="onChatCreated"
           @on-click-history="onClickHistory"
@@ -97,7 +107,7 @@
           v-model:current-chat-id="currentChatId"
           v-model:current-chat="currentChat"
           v-model:loading="loading"
-          :appName="customName"
+          :app-name="customName"
           :in-popover="false"
           @go-empty="goEmpty"
           @on-chat-created="onChatCreated"
@@ -128,9 +138,11 @@
           <div class="welcome-content">
             <template v-if="isCompletePage">
               <div class="greeting">
-                <el-icon size="32">
-                  <logo_fold />
-                </el-icon>
+                <img height="32" width="32" v-if="loginBg" :src="loginBg" alt="" />
+                <el-icon size="32" v-else
+                  ><custom_small v-if="appearanceStore.themeColor !== 'default'"></custom_small>
+                  <LOGO_fold v-else></LOGO_fold
+                ></el-icon>
                 {{ t('qa.greeting') }}
               </div>
               <div class="sub">
@@ -171,7 +183,20 @@
           </div>
         </div>
         <div v-else-if="computedMessages.length == 0 && loading" class="welcome-content-block">
-          <logo />
+          <div style="display: flex; align-items: center; height: 30px">
+            <img
+              height="30"
+              width="30"
+              v-if="logoAssistant || loginBg"
+              :src="logoAssistant ? logoAssistant : loginBg"
+              alt=""
+            />
+            <el-icon size="30" v-else
+              ><custom_small v-if="appearanceStore.themeColor !== 'default'"></custom_small>
+              <LOGO_fold v-else></LOGO_fold
+            ></el-icon>
+            <span style="margin-left: 12px">{{ appearanceStore.name }}</span>
+          </div>
         </div>
         <el-scrollbar
           v-if="computedMessages.length > 0"
@@ -188,7 +213,12 @@
             }"
           >
             <template v-for="(message, _index) in computedMessages" :key="_index">
-              <ChatRow :current-chat="currentChat" :msg="message" :hide-avatar="message.first_chat">
+              <ChatRow
+                :logoAssistant="logoAssistant"
+                :current-chat="currentChat"
+                :msg="message"
+                :hide-avatar="message.first_chat"
+              >
                 <RecommendQuestion
                   v-if="message.role === 'assistant' && message.first_chat"
                   ref="recommendQuestionRef"
@@ -199,7 +229,7 @@
                   :first-chat="message.first_chat"
                   @click-question="quickAsk"
                   @stop="onChatStop"
-                  @loadingOver="loadingOver"
+                  @loading-over="loadingOver"
                 />
                 <UserChat v-if="message.role === 'user'" :message="message" />
                 <template v-if="message.role === 'assistant' && !message.first_chat">
@@ -216,8 +246,8 @@
                     :current-chat-id="currentChatId"
                     :loading="isTyping"
                     :message="message"
-                    @scrollBottom="scrollToBottom"
                     :reasoning-name="['sql_answer', 'chart_answer']"
+                    @scroll-bottom="scrollToBottom"
                     @finish="onChartAnswerFinish"
                     @error="onChartAnswerError"
                     @stop="onChatStop"
@@ -292,7 +322,7 @@
                         :first-chat="message.first_chat"
                         :disabled="isTyping"
                         @click-question="quickAsk"
-                        @loadingOver="loadingOver"
+                        @loading-over="loadingOver"
                         @stop="onChatStop"
                       />
                     </template>
@@ -328,7 +358,7 @@
                     :current-chat-id="currentChatId"
                     :loading="isTyping"
                     :message="message"
-                    @scrollBottom="scrollToBottom"
+                    @scroll-bottom="scrollToBottom"
                     @finish="onPredictAnswerFinish"
                     @error="onPredictAnswerError"
                     @stop="onChatStop"
@@ -412,16 +442,18 @@ import ChatToolBar from './ChatToolBar.vue'
 import { dsTypeWithImg } from '@/views/ds/js/ds-type'
 import { useI18n } from 'vue-i18n'
 import { find, forEach } from 'lodash-es'
+import custom_small from '@/assets/svg/logo-custom_small.svg'
+import LOGO_fold from '@/assets/LOGO-fold.svg'
 import icon_new_chat_outlined from '@/assets/svg/icon_new_chat_outlined.svg'
 import icon_sidebar_outlined from '@/assets/svg/icon_sidebar_outlined.svg'
 import icon_replace_outlined from '@/assets/svg/icon_replace_outlined.svg'
 import icon_screen_outlined from '@/assets/svg/icon_screen_outlined.svg'
 import icon_start_outlined from '@/assets/svg/icon_start_outlined.svg'
 import logo_fold from '@/assets/svg/logo-custom_small.svg'
-import logo from '@/assets/LOGO.svg'
 import icon_send_filled from '@/assets/svg/icon_send_filled.svg'
 import { useAssistantStore } from '@/stores/assistant'
 import { onClickOutside } from '@vueuse/core'
+import { useAppearanceStoreWithOut } from '@/stores/appearance'
 import { useUserStore } from '@/stores/user'
 import { debounce } from 'lodash-es'
 
@@ -446,6 +478,9 @@ const defaultFloatPopoverStyle = ref({
 })
 
 const isCompletePage = computed(() => !assistantStore.getAssistant || assistantStore.getEmbedded)
+const embeddedHistoryHidden = computed(
+  () => assistantStore.getAssistant && !assistantStore.getHistory
+)
 const customName = computed(() => {
   if (!isCompletePage.value && props.pageEmbedded) return props.appName
   return ''
@@ -470,11 +505,14 @@ const scrollToBottom = debounce(() => {
 
 const loading = ref<boolean>(false)
 const chatList = ref<Array<ChatInfo>>([])
+const appearanceStore = useAppearanceStoreWithOut()
 
 const currentChatId = ref<number | undefined>()
 const currentChat = ref<ChatInfo>(new ChatInfo())
 const isTyping = ref<boolean>(false)
-
+const loginBg = computed(() => {
+  return appearanceStore.getLogin
+})
 const computedMessages = computed<Array<ChatMessage>>(() => {
   const messages: Array<ChatMessage> = []
   if (currentChatId.value === undefined) {
@@ -1328,7 +1366,9 @@ onMounted(() => {
   border: 1px solid rgba(222, 224, 227, 1);
   border-radius: 6px;
 }
-
+.embedded-history-hidden {
+  display: none !important;
+}
 .show-history_icon {
   cursor: pointer;
   position: absolute;
