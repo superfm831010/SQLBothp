@@ -381,6 +381,96 @@ wlist = [
 2. **分页**: 支持 `LIMIT` 语法
 3. **元数据查询**: 支持 `information_schema`
 
+### 已知语法限制
+
+GBase 8a 虽然兼容 MySQL 大部分语法，但**不支持**以下 MySQL 扩展功能：
+
+#### ❌ 不支持的聚合扩展语法
+
+1. **WITH ROLLUP** - 分组汇总语法
+   ```sql
+   -- ❌ 错误：GBase 8a 不支持
+   SELECT category, SUM(amount)
+   FROM sales
+   GROUP BY category WITH ROLLUP;
+   ```
+
+2. **WITH CUBE** - 多维汇总语法
+   ```sql
+   -- ❌ 错误：GBase 8a 不支持
+   SELECT region, product, SUM(sales)
+   FROM orders
+   GROUP BY region, product WITH CUBE;
+   ```
+
+#### ✅ 替代方案：使用 UNION ALL
+
+当需要实现小计或总计功能时，应使用 `UNION ALL` 合并多个独立的 `GROUP BY` 查询：
+
+**示例 1：单列分组 + 总计**
+```sql
+-- ✅ 正确：使用 UNION ALL 实现总计
+SELECT `category` AS `category_name`, SUM(`amount`) AS `total_amount`
+FROM `sales` `t1`
+GROUP BY `category`
+
+UNION ALL
+
+SELECT '总计' AS `category_name`, SUM(`amount`) AS `total_amount`
+FROM `sales` `t2`;
+```
+
+**示例 2：多列分组 + 多级汇总**
+```sql
+-- ✅ 正确：使用 UNION ALL 实现分类小计和总计
+-- 明细行
+SELECT `region` AS `region_name`, `category` AS `category_name`, SUM(`amount`) AS `total`
+FROM `sales` `t1`
+GROUP BY `region`, `category`
+
+UNION ALL
+
+-- 地区小计
+SELECT `region` AS `region_name`, '小计' AS `category_name`, SUM(`amount`) AS `total`
+FROM `sales` `t2`
+GROUP BY `region`
+
+UNION ALL
+
+-- 总计
+SELECT '总计' AS `region_name`, '总计' AS `category_name`, SUM(`amount`) AS `total`
+FROM `sales` `t3`;
+```
+
+#### 🛡️ 系统保护机制
+
+SQLBot 已实现**双重保护**防止不支持的语法执行：
+
+1. **模板层限制** (`backend/templates/sql_examples/GBase.yaml`)
+   - LLM 生成 SQL 时会遵循 GBase 模板中的明确规则
+   - 规则禁止使用 `WITH ROLLUP`、`WITH CUBE` 等语法
+   - 提示使用 `UNION ALL` 替代方案
+
+2. **执行层检查** (`backend/apps/db/db.py:758-770`)
+   - SQL 执行前进行语法检查
+   - 检测到不支持的语法会立即拒绝执行
+   - 返回友好的错误提示和替代建议
+
+**错误提示示例**:
+```
+GBase 8a 不支持 WITH ROLLUP（汇总语法）。
+建议：使用 UNION ALL 合并多个独立的 GROUP BY 查询来实现小计/总计功能。
+示例：SELECT ... GROUP BY col1, col2 UNION ALL SELECT '总计', ... GROUP BY col1
+```
+
+#### 📋 其他语法注意事项
+
+- ✅ 支持标准 `GROUP BY`、`ORDER BY`、`HAVING`
+- ✅ 支持 `UNION`、`UNION ALL`
+- ✅ 支持子查询和 JOIN
+- ✅ 支持窗口函数（需确认版本）
+- ⚠️ 对于复杂的统计需求，建议拆分为多个简单查询后用 UNION 合并
+
 ### 驱动特点
 
 - **驱动包**: `gbase-connector-python`

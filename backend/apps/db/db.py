@@ -754,6 +754,21 @@ def exec_sql(ds: CoreDatasource | AssistantOutDsSchema, sql: str, origin_column=
         elif equals_ignore_case(ds.type, 'gbase'):
             # GBase 8a SQL 执行
             import GBaseConnector
+
+            # GBase 8a 语法检查：检测不支持的 MySQL 扩展语法
+            sql_upper = sql.upper()
+            unsupported_syntax = [
+                ('WITH ROLLUP', 'WITH ROLLUP（汇总语法）'),
+                ('WITH CUBE', 'WITH CUBE（多维汇总语法）'),
+            ]
+            for pattern, desc in unsupported_syntax:
+                if pattern in sql_upper:
+                    raise ParseSQLResultError(
+                        f"GBase 8a 不支持 {desc}。\n"
+                        f"建议：使用 UNION ALL 合并多个独立的 GROUP BY 查询来实现小计/总计功能。\n"
+                        f"示例：SELECT ... GROUP BY col1, col2 UNION ALL SELECT '总计', ... GROUP BY col1"
+                    )
+
             conn = None
             cursor = None
             try:

@@ -25,6 +25,9 @@ template:
     <rule>函数字段必须加别名</rule>
     <rule>百分比显示为：CONCAT(ROUND(x*100,2),'%')</rule>
     <rule>避免与GBase关键字冲突（如`order`/`group`/`desc`）</rule>
+    <rule>⚠️ 禁止使用 WITH ROLLUP、WITH CUBE 等扩展聚合语法，GBase 8a 不支持这些 MySQL 扩展</rule>
+    <rule>需要小计或总计时，必须使用 UNION ALL 合并多个独立的 GROUP BY 查询</rule>
+    <rule>汇总行通过 NULL 或固定值（如 '总计'、'小计'）来标识分组级别</rule>
 
   basic_example: |
     <basic-examples>
