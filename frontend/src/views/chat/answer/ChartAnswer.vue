@@ -3,8 +3,10 @@ import BaseAnswer from './BaseAnswer.vue'
 import { Chat, chatApi, ChatInfo, type ChatMessage, ChatRecord, questionApi } from '@/api/chat.ts'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import ChartBlock from '@/views/chat/chat-block/ChartBlock.vue'
+
 const props = withDefaults(
   defineProps<{
+    recordId?: number
     chatList?: Array<ChatInfo>
     currentChatId?: number
     currentChat?: ChatInfo
@@ -13,6 +15,7 @@ const props = withDefaults(
     reasoningName: 'sql_answer' | 'chart_answer' | Array<'sql_answer' | 'chart_answer'>
   }>(),
   {
+    recordId: undefined,
     chatList: () => [],
     currentChatId: undefined,
     currentChat: () => new ChatInfo(),
@@ -215,7 +218,10 @@ const sendMessage = async () => {
   }
 }
 
+const loadingData = ref(false)
+
 function getChatData(recordId?: number) {
+  loadingData.value = true
   chatApi
     .get_chart_data(recordId)
     .then((response) => {
@@ -226,9 +232,11 @@ function getChatData(recordId?: number) {
       })
     })
     .finally(() => {
+      loadingData.value = false
       emits('scrollBottom')
     })
 }
+
 function stop() {
   stopFlag.value = true
   _loading.value = false
@@ -250,7 +258,12 @@ defineExpose({ sendMessage, index: () => index.value, stop })
 
 <template>
   <BaseAnswer v-if="message" :message="message" :reasoning-name="reasoningName" :loading="_loading">
-    <ChartBlock style="margin-top: 6px" :message="message" />
+    <ChartBlock
+      style="margin-top: 6px"
+      :message="message"
+      :record-id="recordId"
+      :loading-data="loadingData"
+    />
     <slot></slot>
     <template #tool>
       <slot name="tool"></slot>
