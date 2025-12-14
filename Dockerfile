@@ -73,7 +73,7 @@ RUN npm config set fund false \
 
 COPY g2-ssr/app.js g2-ssr/package.json /app/
 COPY g2-ssr/charts/* /app/charts/
-RUN npm install
+RUN npm install --legacy-peer-deps || npm install --force
 
 # Runtime stage
 FROM --platform=${BUILDPLATFORM} registry.cn-qingdao.aliyuncs.com/dataease/sqlbot-python-pg:latest
