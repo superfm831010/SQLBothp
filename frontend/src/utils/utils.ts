@@ -213,6 +213,11 @@ export const getQueryString = (name: string) => {
   return null
 }
 
+export const getUrlParams = () => {
+  const urlParams = new URLSearchParams(window.location.search) as any
+  return Object.fromEntries(urlParams)
+}
+
 export const isLarkPlatform = () => {
   return !!getQueryString('state') && !!getQueryString('code')
 }
@@ -249,4 +254,31 @@ export function isMobile() {
       /(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i
     ) && !isTablet()
   )
+}
+
+export const getSQLBotAddr = (portEnd?: boolean) => {
+  const addr = location.origin + location.pathname
+  if (!portEnd || !addr.endsWith('/')) {
+    return addr
+  }
+  return addr.substring(0, addr.length - 1)
+}
+
+export const formatArg = (text: string) => {
+  if (!text) {
+    return false
+  }
+  const mappingArray = ['true', 'false', '1', '0']
+  const match = mappingArray.some((item: string) => {
+    return item === text.toLocaleLowerCase()
+  })
+  if (!match) {
+    return text
+  }
+  try {
+    return JSON.parse(text)
+  } catch (e: any) {
+    console.warn(e)
+    return text
+  }
 }

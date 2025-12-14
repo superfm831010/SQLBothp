@@ -10,6 +10,7 @@ import { useI18n } from 'vue-i18n'
 import ParamsForm from './ParamsForm.vue'
 import TableRelationship from '@/views/ds/TableRelationship.vue'
 import icon_mindnote_outlined from '@/assets/svg/icon_mindnote_outlined.svg'
+import { Refresh } from '@element-plus/icons-vue'
 interface Table {
   name: string
   host: string
@@ -77,6 +78,7 @@ const pageInfo = reactive({
 })
 const handleRelationship = () => {
   activeRelationship.value = !activeRelationship.value
+  tableName.value = []
   currentTable.value = {}
 }
 const singleDragStartD = (e: DragEvent, ele: any) => {
@@ -222,6 +224,19 @@ const changeStatus = (row: any) => {
   })
 }
 
+const syncFields = () => {
+  loading.value = true
+  datasourceApi
+    .syncFields(currentTable.value.id)
+    .then(() => {
+      btnSelectClick('d')
+      loading.value = false
+    })
+    .catch(() => {
+      loading.value = false
+    })
+}
+
 const emits = defineEmits(['back', 'refresh'])
 const back = () => {
   emits('back')
@@ -243,13 +258,17 @@ const renderHeader = ({ column }: any) => {
   return column.label
 }
 
+const fieldNameSearch = () => {
+  btnSelectClick(btnSelect.value)
+}
+const fieldName = ref('')
 const btnSelectClick = (val: any) => {
   btnSelect.value = val
   loading.value = true
 
   if (val === 'd') {
     datasourceApi
-      .fieldList(currentTable.value.id)
+      .fieldList(currentTable.value.id, { fieldName: fieldName.value })
       .then((res) => {
         fieldList.value = res
         pageInfo.total = res.length
@@ -311,13 +330,13 @@ const btnSelectClick = (val: any) => {
               :key="ele.table_name"
               :draggable="activeRelationship && !tableName.includes(ele.id)"
               class="model"
-              @dragstart="($event: any) => singleDragStartD($event, ele)"
-              @dragend="singleDragEnd"
               :class="[
                 currentTable.table_name === ele.table_name && 'isActive',
                 tableName.includes(ele.id) && activeRelationship && 'disabled-table',
               ]"
               :title="ele.table_name"
+              @dragstart="($event: any) => singleDragStartD($event, ele)"
+              @dragend="singleDragEnd"
               @click="clickTable(ele)"
             >
               <el-icon size="16">
@@ -344,7 +363,7 @@ const btnSelectClick = (val: any) => {
           </div>
         </div>
         <div class="table-relationship">
-          <div @click="handleRelationship" :class="activeRelationship && 'active'" class="btn">
+          <div :class="activeRelationship && 'active'" class="btn" @click="handleRelationship">
             <el-icon size="16">
               <icon_mindnote_outlined></icon_mindnote_outlined>
             </el-icon>
@@ -357,9 +376,9 @@ const btnSelectClick = (val: any) => {
         <div class="title">{{ t('training.table_relationship_management') }}</div>
         <div class="content">
           <TableRelationship
-            @getTableName="getTableName"
-            :dragging="isDrag"
             :id="info.id"
+            :dragging="isDrag"
+            @get-table-name="getTableName"
           ></TableRelationship>
         </div>
       </div>
@@ -400,6 +419,24 @@ const btnSelectClick = (val: any) => {
               @click="btnSelectClick('q')"
             >
               {{ t('ds.preview') }}
+            </el-button>
+          </div>
+          <div v-if="btnSelect === 'd'" class="field-name">
+            <el-input
+              v-model="fieldName"
+              style="width: 240px"
+              :placeholder="t('dashboard.search')"
+              autocomplete="off"
+              clearable
+              @blur="fieldNameSearch"
+            />
+            <el-button
+              v-if="ds.type !== 'excel'"
+              :icon="Refresh"
+              style="margin-left: 12px"
+              @click="syncFields()"
+            >
+              {{ t('ds.sync_fields') }}
             </el-button>
           </div>
 
@@ -482,6 +519,7 @@ const btnSelectClick = (val: any) => {
                   :key="index"
                   :prop="c"
                   :label="c"
+                  min-width="150"
                   :render-header="renderHeader"
                 />
               </el-table>
@@ -784,6 +822,14 @@ const btnSelectClick = (val: any) => {
       .table-content {
         padding: 16px 24px;
         height: calc(100% - 80px);
+        position: relative;
+
+        .field-name {
+          position: absolute;
+          right: 24px;
+          top: 16px;
+          display: flex;
+        }
 
         .btn-select {
           height: 32px;
