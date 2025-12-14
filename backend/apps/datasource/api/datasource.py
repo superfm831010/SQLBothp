@@ -8,21 +8,24 @@ from typing import List
 
 import orjson
 import pandas as pd
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Path
 
 from apps.db.db import get_schema
 from apps.db.engine import get_engine_conn
+from apps.swagger.i18n import PLACEHOLDER_PREFIX
+from apps.system.schemas.permission import SqlbotPermission, require_permissions
 from common.core.config import settings
 from common.core.deps import SessionDep, CurrentUser, Trans
 from common.utils.utils import SQLBotLogUtil
 from ..crud.datasource import get_datasource_list, check_status, create_ds, update_ds, delete_ds, getTables, getFields, \
     execSql, update_table_and_fields, getTablesByDs, chooseTables, preview, updateTable, updateField, get_ds, fieldEnum, \
-    check_status_by_id
+    check_status_by_id, sync_single_fields
 from ..crud.field import get_fields_by_table_id
 from ..crud.table import get_tables_by_ds_id
-from ..models.datasource import CoreDatasource, CreateDatasource, TableObj, CoreTable, CoreField
+from ..models.datasource import CoreDatasource, CreateDatasource, TableObj, CoreTable, CoreField, FieldObj, \
+    TableSchemaResponse, ColumnSchemaResponse, PreviewResponse
 
-router = APIRouter(tags=["datasource"], prefix="/datasource")
+router = APIRouter(tags=["Datasource"], prefix="/datasource")
 path = settings.EXCEL_PATH
 
 
@@ -33,17 +36,18 @@ async def query_by_oid(session: SessionDep, user: CurrentUser, oid: int) -> List
     return get_datasource_list(session=session, user=user, oid=oid)
 
 
-@router.get("/list")
+@router.get("/list", response_model=List[CoreDatasource], summary=f"{PLACEHOLDER_PREFIX}ds_list",
+            description=f"{PLACEHOLDER_PREFIX}ds_list_description")
 async def datasource_list(session: SessionDep, user: CurrentUser):
     return get_datasource_list(session=session, user=user)
 
 
-@router.post("/get/{id}")
-async def get_datasource(session: SessionDep, id: int):
+@router.post("/get/{id}", response_model=CoreDatasource, summary=f"{PLACEHOLDER_PREFIX}ds_get")
+async def get_datasource(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     return get_ds(session, id)
 
 
-@router.post("/check")
+@router.post("/check", response_model=bool, summary=f"{PLACEHOLDER_PREFIX}ds_check")
 async def check(session: SessionDep, trans: Trans, ds: CoreDatasource):
     def inner():
         return check_status(session, trans, ds, True)
@@ -51,15 +55,16 @@ async def check(session: SessionDep, trans: Trans, ds: CoreDatasource):
     return await asyncio.to_thread(inner)
 
 
-@router.get("/check/{ds_id}")
-async def check_by_id(session: SessionDep, trans: Trans, ds_id: int):
+@router.get("/check/{ds_id}", response_model=bool, summary=f"{PLACEHOLDER_PREFIX}ds_check")
+async def check_by_id(session: SessionDep, trans: Trans,
+                      ds_id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     def inner():
         return check_status_by_id(session, trans, ds_id, True)
 
     return await asyncio.to_thread(inner)
 
 
-@router.post("/add", response_model=CoreDatasource)
+@router.post("/add", response_model=CoreDatasource, summary=f"{PLACEHOLDER_PREFIX}ds_add")
 async def add(session: SessionDep, trans: Trans, user: CurrentUser, ds: CreateDatasource):
     def inner():
         return create_ds(session, trans, user, ds)
@@ -67,15 +72,18 @@ async def add(session: SessionDep, trans: Trans, user: CurrentUser, ds: CreateDa
     return await asyncio.to_thread(inner)
 
 
-@router.post("/chooseTables/{id}")
-async def choose_tables(session: SessionDep, trans: Trans, id: int, tables: List[CoreTable]):
+@router.post("/chooseTables/{id}", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_choose_tables")
+async def choose_tables(session: SessionDep, trans: Trans, tables: List[CoreTable],
+                        id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     def inner():
         chooseTables(session, trans, id, tables)
 
     await asyncio.to_thread(inner)
 
 
-@router.post("/update", response_model=CoreDatasource)
+
+@router.post("/update", response_model=CoreDatasource, summary=f"{PLACEHOLDER_PREFIX}ds_update")
+@require_permissions(permission=SqlbotPermission(type='ds', keyExpression="ds.id"))
 async def update(session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreDatasource):
     def inner():
         return update_ds(session, trans, user, ds)
@@ -83,17 +91,19 @@ async def update(session: SessionDep, trans: Trans, user: CurrentUser, ds: CoreD
     return await asyncio.to_thread(inner)
 
 
-@router.post("/delete/{id}", response_model=CoreDatasource)
-async def delete(session: SessionDep, id: int):
+@router.post("/delete/{id}", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_delete")
+@require_permissions(permission=SqlbotPermission(type='ds', keyExpression="id"))
+async def delete(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     return delete_ds(session, id)
 
 
-@router.post("/getTables/{id}")
-async def get_tables(session: SessionDep, id: int):
+@router.post("/getTables/{id}", response_model=List[TableSchemaResponse], summary=f"{PLACEHOLDER_PREFIX}ds_get_tables")
+@require_permissions(permission=SqlbotPermission(type='ds', keyExpression="id"))
+async def get_tables(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     return getTables(session, id)
 
 
-@router.post("/getTablesByConf")
+@router.post("/getTablesByConf", response_model=List[TableSchemaResponse], summary=f"{PLACEHOLDER_PREFIX}ds_get_tables")
 async def get_tables_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasource):
     try:
         def inner():
@@ -111,7 +121,7 @@ async def get_tables_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasour
             raise HTTPException(status_code=500, detail=f'Get table Failed: {e.args}')
 
 
-@router.post("/getSchemaByConf")
+@router.post("/getSchemaByConf", response_model=List[str], summary=f"{PLACEHOLDER_PREFIX}ds_get_schema")
 async def get_schema_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasource):
     try:
         def inner():
@@ -129,9 +139,17 @@ async def get_schema_by_conf(session: SessionDep, trans: Trans, ds: CoreDatasour
             raise HTTPException(status_code=500, detail=f'Get table Failed: {e.args}')
 
 
-@router.post("/getFields/{id}/{table_name}")
-async def get_fields(session: SessionDep, id: int, table_name: str):
+@router.post("/getFields/{id}/{table_name}", response_model=List[ColumnSchemaResponse],
+             summary=f"{PLACEHOLDER_PREFIX}ds_get_fields")
+async def get_fields(session: SessionDep,
+                     id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id"),
+                     table_name: str = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_table_name")):
     return getFields(session, id, table_name)
+
+
+@router.post("/syncFields/{id}", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_sync_fields")
+async def sync_fields(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_table_id")):
+    return sync_single_fields(session, id)
 
 
 from pydantic import BaseModel
@@ -142,7 +160,7 @@ class TestObj(BaseModel):
 
 
 # not used, just do test
-@router.post("/execSql/{id}")
+@router.post("/execSql/{id}", include_in_schema=False)
 async def exec_sql(session: SessionDep, id: int, obj: TestObj):
     def inner():
         data = execSql(session, id, obj.sql)
@@ -158,33 +176,35 @@ async def exec_sql(session: SessionDep, id: int, obj: TestObj):
     return await asyncio.to_thread(inner)
 
 
-@router.post("/tableList/{id}")
-async def table_list(session: SessionDep, id: int):
+@router.post("/tableList/{id}", response_model=List[CoreTable], summary=f"{PLACEHOLDER_PREFIX}ds_table_list")
+async def table_list(session: SessionDep, id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     return get_tables_by_ds_id(session, id)
 
 
-@router.post("/fieldList/{id}")
-async def field_list(session: SessionDep, id: int):
-    return get_fields_by_table_id(session, id)
+@router.post("/fieldList/{id}", response_model=List[CoreField], summary=f"{PLACEHOLDER_PREFIX}ds_field_list")
+async def field_list(session: SessionDep, field: FieldObj,
+                     id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_table_id")):
+    return get_fields_by_table_id(session, id, field)
 
 
-@router.post("/editLocalComment")
+@router.post("/editLocalComment", include_in_schema=False)
 async def edit_local(session: SessionDep, data: TableObj):
     update_table_and_fields(session, data)
 
 
-@router.post("/editTable")
+@router.post("/editTable", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_edit_table")
 async def edit_table(session: SessionDep, table: CoreTable):
     updateTable(session, table)
 
 
-@router.post("/editField")
+@router.post("/editField", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_edit_field")
 async def edit_field(session: SessionDep, field: CoreField):
     updateField(session, field)
 
 
-@router.post("/previewData/{id}")
-async def preview_data(session: SessionDep, trans: Trans, current_user: CurrentUser, id: int, data: TableObj):
+@router.post("/previewData/{id}", response_model=PreviewResponse, summary=f"{PLACEHOLDER_PREFIX}ds_preview_data")
+async def preview_data(session: SessionDep, trans: Trans, current_user: CurrentUser, data: TableObj,
+                       id: int = Path(..., description=f"{PLACEHOLDER_PREFIX}ds_id")):
     def inner():
         try:
             return preview(session, current_user, id, data)
@@ -200,7 +220,7 @@ async def preview_data(session: SessionDep, trans: Trans, current_user: CurrentU
 
 
 # not used
-@router.post("/fieldEnum/{id}")
+@router.post("/fieldEnum/{id}", include_in_schema=False)
 async def field_enum(session: SessionDep, id: int):
     def inner():
         return fieldEnum(session, id)
@@ -272,8 +292,8 @@ async def field_enum(session: SessionDep, id: int):
 #     return await asyncio.to_thread(inner)
 
 
-@router.post("/uploadExcel")
-async def upload_excel(session: SessionDep, file: UploadFile = File(...)):
+@router.post("/uploadExcel", response_model=None, summary=f"{PLACEHOLDER_PREFIX}ds_upload_excel")
+async def upload_excel(session: SessionDep, file: UploadFile = File(..., description=f"{PLACEHOLDER_PREFIX}ds_excel")):
     ALLOWED_EXTENSIONS = {"xlsx", "xls", "csv"}
     if not file.filename.lower().endswith(tuple(ALLOWED_EXTENSIONS)):
         raise HTTPException(400, "Only support .xlsx/.xls/.csv")

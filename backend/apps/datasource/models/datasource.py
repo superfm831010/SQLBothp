@@ -22,6 +22,7 @@ class CoreDatasource(SQLModel, table=True):
     oid: int = Field(sa_column=Column(BigInteger()))
     table_relation: List = Field(sa_column=Column(JSONB, nullable=True))
     embedding: str = Field(sa_column=Column(Text, nullable=True))
+    recommended_config: int = Field(sa_column=Column(BigInteger()))
 
 
 class CoreTable(SQLModel, table=True):
@@ -33,6 +34,17 @@ class CoreTable(SQLModel, table=True):
     table_comment: str = Field(sa_column=Column(Text))
     custom_comment: str = Field(sa_column=Column(Text))
     embedding: str = Field(sa_column=Column(Text, nullable=True))
+
+
+class DsRecommendedProblem(SQLModel, table=True):
+    __tablename__ = "ds_recommended_problem"
+    id: int = Field(sa_column=Column(BigInteger, Identity(always=True), nullable=False, primary_key=True))
+    datasource_id: int = Field(sa_column=Column(BigInteger()))
+    question: str = Field(sa_column=Column(Text))
+    remark: str = Field(sa_column=Column(Text))
+    sort: int = Field(sa_column=Column(BigInteger()))
+    create_time: datetime = Field(sa_column=Column(DateTime(timezone=False), nullable=True))
+    create_by: int = Field(sa_column=Column(BigInteger()))
 
 
 class CoreField(SQLModel, table=True):
@@ -61,6 +73,31 @@ class CreateDatasource(BaseModel):
     num: str = ''
     oid: int = 1
     tables: List[CoreTable] = []
+    recommended_config: int = 1
+
+
+class RecommendedProblemResponse:
+    def __init__(self, datasource_id, recommended_config, questions):
+        self.datasource_id = datasource_id
+        self.recommended_config = recommended_config
+        self.questions = questions
+
+    datasource_id: int = None
+    recommended_config: int = None
+    questions: str = None
+
+
+class RecommendedProblemBase(BaseModel):
+    datasource_id: int = None
+    recommended_config: int = None
+    problemInfo: List[DsRecommendedProblem] = []
+
+
+class RecommendedProblemBaseChat:
+    def __init__(self, content):
+        self.content = content
+
+    content: List[str] = []
 
 
 # edit local saved table and fields
@@ -110,12 +147,23 @@ class TableSchema:
     tableComment: str
 
 
+class TableSchemaResponse(BaseModel):
+    tableName: str = None
+    tableComment: str = None
+
+
 class ColumnSchema:
     def __init__(self, attr1, attr2, attr3):
         self.fieldName = attr1
         self.fieldType = attr2
         self.fieldComment = attr3 if attr3 is None or isinstance(attr3, str) else attr3.decode("utf-8")
 
+    fieldName: str
+    fieldType: str
+    fieldComment: str
+
+
+class ColumnSchemaResponse(BaseModel):
     fieldName: str
     fieldType: str
     fieldComment: str
@@ -130,3 +178,12 @@ class TableAndFields:
     schema: str
     table: CoreTable
     fields: List[CoreField]
+
+
+class FieldObj(BaseModel):
+    fieldName: str | None
+
+class PreviewResponse(BaseModel):
+    fields:List = []
+    data:List = []
+    sql:str = ''
