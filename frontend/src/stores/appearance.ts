@@ -60,7 +60,7 @@ export const useAppearanceStore = defineStore('appearanceStore', {
       login: '',
       slogan: '',
       web: '',
-      name: '埔关智问',
+      name: '智能问数',
       foot: 'false',
       footContent: '',
       loaded: false,
@@ -256,7 +256,7 @@ export const useAppearanceStore = defineStore('appearanceStore', {
       const obj = LicenseGenerator.getLicense()
       if (obj?.status !== 'valid') {
         setCurrentColor('#1CBA90')
-        document.title = '埔关智问'
+        document.title = '智能问数'
         setLinkIcon()
         return
       }
@@ -301,8 +301,8 @@ export const useAppearanceStore = defineStore('appearanceStore', {
         document.title = this.name
         setTitle(this.name)
       } else {
-        document.title = '埔关智问'
-        setTitle('埔关智问')
+        document.title = '智能问数'
+        setTitle('智能问数')
       }
       setLinkIcon(this.web)
     },

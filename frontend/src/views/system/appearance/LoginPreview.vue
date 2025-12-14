@@ -9,9 +9,9 @@
           </el-icon>
         </div>
         <div class="tab-card active">
-          <div :title="pageName || '埔关智问'" class="active-span">
+          <div :title="pageName || '智能问数'" class="active-span">
             <img :src="pageWeb" alt="" />
-            <span>{{ pageName || '埔关智问' }}</span>
+            <span>{{ pageName || '智能问数' }}</span>
           </div>
           <el-icon size="10">
             <icon_close_outlined />
