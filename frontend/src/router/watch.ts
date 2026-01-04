@@ -4,6 +4,7 @@ import { useAppearanceStoreWithOut } from '@/stores/appearance'
 import { useUserStore } from '@/stores/user'
 import { request } from '@/utils/request'
 import type { Router } from 'vue-router'
+import { generateDynamicRouters } from './dynamic'
 
 const appearanceStore = useAppearanceStoreWithOut()
 const userStore = useUserStore()
@@ -33,8 +34,15 @@ export const watchRouter = (router: Router) => {
       next('/login')
       return
     }
+    let isFirstDynamicPath = false
     if (!userStore.getUid) {
       await userStore.info()
+      generateDynamicRouters(router)
+      isFirstDynamicPath = to?.path === '/ds/index'
+      if (isFirstDynamicPath) {
+        next({ ...to, replace: true })
+        return
+      }
     }
     if (to.path === '/' || accessCrossPermission(to)) {
       next('/chat')

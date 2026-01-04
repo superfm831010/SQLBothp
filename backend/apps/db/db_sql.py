@@ -67,7 +67,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
     elif equals_ignore_case(ds.type, "pg", "excel"):
         return """
               SELECT c.relname                                       AS TABLE_NAME,
-                     COALESCE(d.description, obj_description(c.oid)) AS TABLE_COMMENT
+                     COALESCE(COALESCE(d.description, obj_description(c.oid)), '') AS TABLE_COMMENT
               FROM pg_class c
                        LEFT JOIN
                    pg_namespace n ON n.oid = c.relnamespace
@@ -107,7 +107,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
         version = int(db_version.split('.')[0])
         if version < 22:
             return """
-                    SELECT name, null as comment
+                    SELECT name, '' as comment
                     FROM system.tables
                     WHERE database = :param
                       AND engine NOT IN ('Dictionary')
@@ -152,7 +152,7 @@ def get_table_sql(ds: CoreDatasource, conf: DatasourceConf, db_version: str = ''
     elif equals_ignore_case(ds.type, "kingbase"):
         return """
               SELECT c.relname                                       AS TABLE_NAME,
-                     COALESCE(d.description, obj_description(c.oid)) AS TABLE_COMMENT
+                     COALESCE(COALESCE(d.description, obj_description(c.oid)), '') AS TABLE_COMMENT
               FROM pg_class c
                        LEFT JOIN
                    pg_namespace n ON n.oid = c.relnamespace

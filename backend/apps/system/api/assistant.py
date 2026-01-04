@@ -21,6 +21,8 @@ from common.core.sqlbot_cache import clear_cache
 from common.utils.utils import get_origin_from_referer, origin_match_domain
 
 router = APIRouter(tags=["system_assistant"], prefix="/system/assistant")
+from common.audit.models.log_model import OperationType, OperationModules
+from common.audit.schemas.logger_decorator import LogConfig, system_log
 
 
 @router.get("/info/{id}", include_in_schema=False)
@@ -106,6 +108,7 @@ async def picture(file_id: str = Path(description="file_id")):
 
 
 @router.patch('/ui', summary=f"{PLACEHOLDER_PREFIX}assistant_ui_api", description=f"{PLACEHOLDER_PREFIX}assistant_ui_api")
+@system_log(LogConfig(operation_type=OperationType.UPDATE, module=OperationModules.APPLICATION, result_id_expr="id"))
 async def ui(session: SessionDep, data: str = Form(), files: List[UploadFile] = []):
     json_data = json.loads(data)
     uiSchema = AssistantUiSchema(**json_data)
@@ -123,8 +126,15 @@ async def ui(session: SessionDep, data: str = Form(), files: List[UploadFile] = 
             file_name, flag_name = SQLBotFileUtils.split_filename_and_flag(origin_file_name)
             file.filename = file_name
             if flag_name == 'logo' or flag_name == 'float_icon':
-                SQLBotFileUtils.check_file(file=file, file_types=[".jpg", ".jpeg", ".png", ".svg"],
-                                           limit_file_size=(10 * 1024 * 1024))
+                try:
+                    SQLBotFileUtils.check_file(file=file, file_types=[".jpg", ".png", ".svg"],
+                                               limit_file_size=(10 * 1024 * 1024))
+                except ValueError as e:
+                    error_msg = str(e)
+                    if '文件大小超过限制' in error_msg:
+                        raise ValueError(f"文件大小超过限制（最大 10 M）")
+                    else:
+                        raise e
                 if config_obj.get(flag_name):
                     SQLBotFileUtils.delete_file(config_obj.get(flag_name))
                 file_id = await SQLBotFileUtils.upload(file)
@@ -146,6 +156,7 @@ async def ui(session: SessionDep, data: str = Form(), files: List[UploadFile] = 
     session.add(db_model)
     session.commit()
     await clear_ui_cache(db_model.id)
+    return db_model
 
 
 @clear_cache(namespace=CacheNamespace.EMBEDDED_INFO, cacheName=CacheName.ASSISTANT_INFO, keyExpression="id")
@@ -168,12 +179,14 @@ async def query_advanced_application(session: SessionDep):
 
 
 @router.post("", summary=f"{PLACEHOLDER_PREFIX}assistant_create_api", description=f"{PLACEHOLDER_PREFIX}assistant_create_api")
+@system_log(LogConfig(operation_type=OperationType.CREATE, module=OperationModules.APPLICATION, result_id_expr="id"))
 async def add(request: Request, session: SessionDep, creator: AssistantBase):
-    await save(request, session, creator)
+    return await save(request, session, creator)
 
 
 @router.put("", summary=f"{PLACEHOLDER_PREFIX}assistant_update_api", description=f"{PLACEHOLDER_PREFIX}assistant_update_api")
 @clear_cache(namespace=CacheNamespace.EMBEDDED_INFO, cacheName=CacheName.ASSISTANT_INFO, keyExpression="editor.id")
+@system_log(LogConfig(operation_type=OperationType.UPDATE, module=OperationModules.APPLICATION, resource_id_expr="editor.id"))
 async def update(request: Request, session: SessionDep, editor: AssistantDTO):
     id = editor.id
     db_model = session.get(AssistantModel, id)
@@ -195,8 +208,9 @@ async def get_one(session: SessionDep, id: int = Path(description="ID")):
     return db_model
 
 
-@router.delete("/{id}", response_model=AssistantModel, summary=f"{PLACEHOLDER_PREFIX}assistant_del_api", description=f"{PLACEHOLDER_PREFIX}assistant_del_api")
+@router.delete("/{id}", summary=f"{PLACEHOLDER_PREFIX}assistant_del_api", description=f"{PLACEHOLDER_PREFIX}assistant_del_api")
 @clear_cache(namespace=CacheNamespace.EMBEDDED_INFO, cacheName=CacheName.ASSISTANT_INFO, keyExpression="id")
+@system_log(LogConfig(operation_type=OperationType.DELETE, module=OperationModules.APPLICATION, resource_id_expr="id"))
 async def delete(request: Request, session: SessionDep, id: int = Path(description="ID")):
     db_model = session.get(AssistantModel, id)
     if not db_model:
