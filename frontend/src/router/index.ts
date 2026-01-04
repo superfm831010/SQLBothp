@@ -5,7 +5,6 @@ import LayoutDsl from '@/components/layout/LayoutDsl.vue'
 import SinglePage from '@/components/layout/SinglePage.vue'
 import login from '@/views/login/index.vue'
 import chat from '@/views/chat/index.vue'
-import Datasource from '@/views/ds/Datasource.vue'
 import DashboardEditor from '@/views/dashboard/editor/index.vue'
 import DashboardPreview from '@//views/dashboard/preview/SQPreviewSingle.vue'
 import Dashboard from '@/views/dashboard/index.vue'
@@ -18,6 +17,7 @@ import Member from '@/views/system/member/index.vue'
 import Professional from '@/views/system/professional/index.vue'
 import Training from '@/views/system/training/index.vue'
 import Prompt from '@/views/system/prompt/index.vue'
+import Audit from '@/views/system/audit/index.vue'
 import Appearance from '@/views/system/appearance/index.vue'
 import Parameter from '@/views/system/parameter/index.vue'
 import Authentication from '@/views/system/authentication/index.vue'
@@ -63,9 +63,10 @@ export const routes = [
       },
     ],
   },
-  {
+  /* {
     path: '/ds',
     component: LayoutDsl,
+    name: 'ds-menu',
     redirect: '/ds/index',
     children: [
       {
@@ -75,7 +76,7 @@ export const routes = [
         meta: { title: t('menu.Data Connections'), iconActive: 'ds', iconDeActive: 'noDs' },
       },
     ],
-  },
+  }, */
   {
     path: '/dashboard',
     component: LayoutDsl,
@@ -212,6 +213,12 @@ export const routes = [
             meta: { title: t('system.authentication_settings') },
           },
         ],
+      },
+      {
+        path: 'audit',
+        name: 'audit',
+        component: Audit,
+        meta: { title: t('audit.system_log'), iconActive: 'log', iconDeActive: 'noLog' },
       },
     ],
   },

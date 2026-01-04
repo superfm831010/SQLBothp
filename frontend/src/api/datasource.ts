@@ -8,7 +8,7 @@ export const datasourceApi = {
   add: (data: any) => request.post('/datasource/add', data),
   list: () => request.get('/datasource/list'),
   update: (data: any) => request.post('/datasource/update', data),
-  delete: (id: number) => request.post(`/datasource/delete/${id}`),
+  delete: (id: number, name: string) => request.post(`/datasource/delete/${id}/${name}`),
   getTables: (id: number) => request.post(`/datasource/getTables/${id}`),
   getTablesByConf: (data: any) => request.post('/datasource/getTablesByConf', data),
   getFields: (id: number, table_name: string) =>
@@ -27,4 +27,9 @@ export const datasourceApi = {
   cancelRequests: () => request.cancelRequests(),
   getSchema: (data: any) => request.post('/datasource/getSchemaByConf', data),
   syncFields: (id: number) => request.post(`/datasource/syncFields/${id}`),
+  exportDsSchema: (id: any) =>
+    request.get(`/datasource/exportDsSchema/${id}`, {
+      responseType: 'blob',
+      requestOptions: { customError: true },
+    }),
 }

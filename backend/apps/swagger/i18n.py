@@ -43,9 +43,16 @@ def load_translation(lang: str) -> Dict[str, str]:
 # group tags
 tags_metadata = [
     {
+        "name": "Data Q&A",
+        "description": f"{PLACEHOLDER_PREFIX}data_qa"
+    },
+    {
         "name": "Datasource",
         "description": f"{PLACEHOLDER_PREFIX}ds_api"
     },
+    {"name": "Dashboard",
+     "description": f"{PLACEHOLDER_PREFIX}db_api"
+     },
     {
         "name": "system_user",
         "description": f"{PLACEHOLDER_PREFIX}system_user_api"
@@ -62,14 +69,45 @@ tags_metadata = [
         "name": "system_assistant",
         "description": f"{PLACEHOLDER_PREFIX}system_assistant_api"
     },
-    {   "name": "Table Relation",
-        "description": f"{PLACEHOLDER_PREFIX}tr_api"
+    {
+        "name": "system_embedded",
+        "description": f"{PLACEHOLDER_PREFIX}system_embedded_api"
     },
+    {
+        "name": "system_authentication",
+        "description": f"{PLACEHOLDER_PREFIX}system_authentication_api"
+    },
+    {"name": "Table Relation",
+     "description": f"{PLACEHOLDER_PREFIX}tr_api"
+     },
     {
         "name": "Data Permission",
         "description": f"{PLACEHOLDER_PREFIX}per_api"
     },
-
+    {
+        "name": "SQL Examples",
+        "description": f"{PLACEHOLDER_PREFIX}data_training_api"
+    },
+    {
+        "name": "Terminology",
+        "description": f"{PLACEHOLDER_PREFIX}terminology_api"
+    },
+    {
+        "name": "CustomPrompt",
+        "description": f"{PLACEHOLDER_PREFIX}custom_prompt_api"
+    },
+    {
+        "name": "mcp",
+        "description": f"{PLACEHOLDER_PREFIX}mcp_api"
+    },
+    {
+        "name": "recommended problem",
+        "description": f"{PLACEHOLDER_PREFIX}recommended_problem_api"
+    },
+    {
+        "name": "Audit",
+        "description": f"{PLACEHOLDER_PREFIX}audit_api"
+    }
 ]
 
 
