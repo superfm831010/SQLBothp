@@ -19,5 +19,8 @@ backend/.DS_Store
 *.md
 !CLAUDE.md
 
+# Data directories (runtime data, not needed in build)
+data/
+
 # Keep GBase driver - DO NOT IGNORE
 !GBasePython3-9.5.0.1_build4/
